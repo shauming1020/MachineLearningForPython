@@ -6,12 +6,9 @@ import pandas as pd
 #import re
 #from collections import Counter
 #from keras.utils.generic_utils import get_custom_objects
-from keras import regularizers
 #from keras import backend as K
 #import pickle
 #import sys
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = "7"
 
 ### Parameters ###
 RAWDATA_LABEL_PATH = 'C:/Users/Zheng Shau Ming/Documents/GitHub/ML2017FALL_dataset/hw4_RNN/training_label.txt'
@@ -71,6 +68,7 @@ def Build_model(SEQUENCES_SIZE, LEXION_SIZE, HIDDEN_DIM):
     ## Build Simple RNN Model
     from keras.layers import Input,InputLayer,Embedding,BatchNormalization, Dense, Bidirectional,LSTM,Dropout,GRU,Activation
     from keras.models import Model
+    from keras import regularizers
     ### Parameters ###
     RETURN_SEQUENCE = False
     DROPOUT_RATE = 0.4
@@ -103,7 +101,7 @@ def Train_model(X,Y,X_val,Y_val,model,now):
     EPOCHS = 32
     BATCH_SIZE = 5120
     #################
-    cp = ModelCheckpoint(MODE_PATH + '/model_'+ str(now) +'.h5',
+    cp = ModelCheckpoint(MODE_PATH + '/model_' + str(now) + '.h5',
                          verbose=1,save_best_only=True,monitor='val_acc')
     es = EarlyStopping(monitor='val_acc',patience=PATIENCE,verbose=1)
     history = model.fit(X,Y,
@@ -131,7 +129,6 @@ def Fit_stacked_model(members,X_test,y_test):
     stackedX = Stacked_dataset(members,X_test)
     from sklearn.linear_model import LogisticRegression
     model = LogisticRegression()
-    y_test = np.argmax(y_test,axis=-1) # LogisticRegression's target values
     model.fit(stackedX, y_test)
     return model
 
@@ -177,11 +174,12 @@ def Stacked_Ensemble(NUM):
     for i in range(NUM):
         model = load_model(MODE_PATH + '/model_'+ str(i) +'.h5')
         all_models.append(model)   
-    model = Fit_stacked_model(all_models,X_test,y_test)
+    yc_test = np.argmax(y_test,axis=-1) # LogisticRegression's target values    
+    model = Fit_stacked_model(all_models,X_test,yc_test)
     ## Evaluate The Model
     from sklearn.metrics import accuracy_score
-    yhat = Stacked_prediction(all_models, model, X_test)
-    acc = accuracy_score(y_test, yhat)
+    y_pred = Stacked_prediction(all_models, model, X_test)
+    acc = accuracy_score(yc_test, y_pred)
     print('Stacked Test Accuracy: %.3f' % acc)
     
     ## Read Observe Data
