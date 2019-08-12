@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
-
-#import gensim
 #import random
-#import re
 #from collections import Counter
 #from keras.utils.generic_utils import get_custom_objects
 #from keras import backend as K
@@ -11,32 +8,39 @@ import pandas as pd
 #import sys
 
 ### Parameters ###
-RAWDATA_LABEL_PATH = 'C:/Users/Zheng Shau Ming/Documents/GitHub/ML2017FALL_dataset/hw4_RNN/training_label.txt'
-OBSERVE_PATH = 'C:/Users/Zheng Shau Ming/Documents/GitHub/ML2017FALL_dataset/hw4_RNN/testing_data.txt'
-SUBMISSION_PATH = 'C:/Users/Zheng Shau Ming/Documents/GitHub/ML2017FALL_dataset/hw4_RNN/sampleSubmission.csv'
+RAWDATA_LABEL_PATH = './dataset/training_label.txt'
+OBSERVE_PATH = './dataset/testing_data.txt'
+SUBMISSION_PATH = './dataset/sampleSubmission.csv'
 MODE_PATH = './model'
 HIS_PATH = './history'
 ##################
 
-#stemmer = gensim.parsing.porter.PorterStemmer()
-#def preprocess(string, use_stem = True):
-#    string = string.replace("i ' m", "im").replace("you ' re","youre").replace("didn ' t","didnt").replace("can ' t","cant").replace("haven ' t", "havent").replace("won ' t", "wont").replace("isn ' t","isnt").replace("don ' t", "dont").replace("doesn ' t", "doesnt").replace("aren ' t", "arent").replace("weren ' t", "werent").replace("wouldn ' t","wouldnt").replace("ain ' t","aint").replace("shouldn ' t","shouldnt").replace("wasn ' t","wasnt").replace(" ' s","s").replace("wudn ' t","wouldnt").replace(" .. "," ... ").replace("couldn ' t","couldnt")
-#    for same_char in re.findall(r'((\w)\2{2,})', string):
-#        string = string.replace(same_char[0], same_char[1])
-#    for digit in re.findall(r'\d+', string):
-#        string = string.replace(digit, "1")
-#    for punct in re.findall(r'([-/\\\\()!"+,&?\'.]{2,})',string):
-#        if punct[0:2] =="..":
-#            string = string.replace(punct, "...")
-#        else:
-#            string = string.replace(punct, punct[0])
-#    return string
-#
-#s = "been there ,,, still there .,... but he can ' t complain when he runs out of clean clothes i taught mine how to do his at 10"
-#print("preprocess: ",preprocess(s))
-#print("after stemming: ",stemmer.stem_sentence(preprocess(s)))
+def Preprocess(string, use_stem = True):
+    import re
+    import gensim
+    stemmer = gensim.parsing.porter.PorterStemmer()
+    string = string.replace("i ' m", "im").replace("you ' re","youre")
+    string = string.replace("didn ' t","didnt").replace("can ' t","cant")
+    string = string.replace("haven ' t", "havent").replace("won ' t", "wont")
+    string = string.replace("isn ' t","isnt").replace("don ' t", "dont")
+    string = string.replace("doesn ' t", "doesnt").replace("aren ' t", "arent")
+    string = string.replace("weren ' t", "werent").replace("wouldn ' t","wouldnt")
+    string = string.replace("ain ' t","aint").replace("shouldn ' t","shouldnt")
+    string = string.replace("wasn ' t","wasnt").replace(" ' s","s")
+    string = string.replace("wudn ' t","wouldnt").replace(" .. "," ... ")
+    string = string.replace("couldn ' t","couldnt")
+    for same_char in re.findall(r'((\w)\2{2,})', string):
+        string = string.replace(same_char[0], same_char[1])
+    for digit in re.findall(r'\d+', string):
+        string = string.replace(digit, "1")
+    for punct in re.findall(r'([-/\\\\()!"+,&?\'.]{2,})',string):
+        if punct[0:2] =="..":
+            string = string.replace(punct, "...")
+        else:
+            string = string.replace(punct, punct[0])
+    return stemmer.stem_sentence(string)
 
-def Preprocessing(corpus,corpus_y,MODE,pad_length=None):
+def Encoding(corpus,corpus_y,MODE,pad_length=None):
     from keras.preprocessing.text import Tokenizer
     from keras.preprocessing.sequence import pad_sequences
     ### Parameters ###
@@ -64,7 +68,29 @@ def Preprocessing(corpus,corpus_y,MODE,pad_length=None):
         bow = tokenizer.texts_to_matrix(corpus,BOW_MODE)
         return bow, corpus_y, word_index
 
-def Build_model(SEQUENCES_SIZE, LEXION_SIZE, HIDDEN_DIM):
+def PreTrain_weights(sequences, word_index, HIDDEN_DIM):
+    from gensim.models import Word2Vec
+    sequences = [seg.split(" ") for seg in sequences]
+    w2v_model = Word2Vec(sequences, size=HIDDEN_DIM, window=5, min_count=0, workers=8)
+#    w2v_model.build_vocab(sentences)
+#    w2v_model.train(sentences, total_examples=w2v_model.corpus_count, epochs=w2v_model.iter)
+#    word_vectors = w2v_model.wv
+#    del w2v_model
+    SEQUENCES_SIZE = np.max([len(i) for i in sequences])
+    EMB_INPUT_SIZE = len(word_index)
+    embedding_matrix = np.zeros((SEQUENCES_SIZE,EMB_INPUT_SIZE))
+    oov_count = 0
+    for word, i in word_index.items():
+        try:
+            embedding_vector = w2v_model.wv[word]
+            embedding_matrix[i] = embedding_vector 
+        except:
+            oov_count +=1
+            print(word," not in w2v model")
+    return SEQUENCES_SIZE, EMB_INPUT_SIZE, embedding_matrix
+
+
+def Build_model(SEQUENCES_SIZE, EMB_INPUT_SIZE, HIDDEN_DIM, embedding_matrix=None):
     ## Build Simple RNN Model
     from keras.layers import Input,InputLayer,Embedding,BatchNormalization, Dense, Bidirectional,LSTM,Dropout,GRU,Activation
     from keras.models import Model
@@ -74,20 +100,27 @@ def Build_model(SEQUENCES_SIZE, LEXION_SIZE, HIDDEN_DIM):
     DROPOUT_RATE = 0.4
     ##################
     # Input
-    inputs = Input(shape=(SEQUENCES_SIZE,),dtype='int32')
+    inputs = Input(shape=(SEQUENCES_SIZE,),dtype='int32')  
     # Embedding layer
     # This the important issue that input_dim: int > 0. 
-    # Size of the vocabulary, i.e. maximum integer index + 1.
-    embedding_inputs = Embedding(input_dim=LEXION_SIZE+1,
-                                 output_dim=HIDDEN_DIM,
-                                 trainable=True)(inputs)
+    # Size of the vocabulary, i.e. maximum integer index + 1.    
+    if embedding_matrix.any():
+
+        embedding_inputs = Embedding(input_dim=EMB_INPUT_SIZE+1,
+                                     output_dim=HIDDEN_DIM,
+                                     weights=[embedding_matrix],
+                                     trainable=False)(inputs)        
+    else:
+        embedding_inputs = Embedding(input_dim=EMB_INPUT_SIZE+1,
+                                     output_dim=HIDDEN_DIM,
+                                     trainable=True)(inputs)
     # LSTM
     RNN_cell = LSTM(HIDDEN_DIM,return_sequences=RETURN_SEQUENCE,dropout=DROPOUT_RATE)
     RNN_output = RNN_cell(embedding_inputs)
     
     # DNN (classify)
     outputs = Dense(2,activation='softmax',
-                    kernel_regularizer=regularizers.l2(0.0001))(RNN_output)
+                    kernel_regularizer=regularizers.l2(0.01))(RNN_output)
     
     model = Model(inputs,outputs)
     model.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['acc'])
@@ -144,9 +177,10 @@ def Stacked_Ensemble(NUM):
     X_raw = [seg.strip().split(" +++$+++ ")[1] for seg in raw_label]
     y_raw = [seg.strip().split(" +++$+++ ")[0] for seg in raw_label]
     ## Preprocessing
+    X_raw_seq = [Preprocess(seg) for seg in X_raw]
+    ## Encoding
     from keras.utils import to_categorical    
-    X_raw, y_raw, word_index = Preprocessing(X_raw,y_raw,'sequences')
-    y_raw = to_categorical(y_raw).astype('int32')
+    X_raw, y_raw, word_index = Encoding(X_raw_seq,y_raw,'sequences')
     ## Get Training set and Testing set
     from sklearn.model_selection import train_test_split   
     X_train,X_test,y_train,y_test = train_test_split(X_raw,y_raw,train_size=0.7,shuffle=True)    
@@ -154,9 +188,15 @@ def Stacked_Ensemble(NUM):
     VAL_SIZE = 0.2
     SEQUENCES_SIZE = np.shape(X_raw)[1] # columns dim size of sequences
     LEXION_SIZE = len(word_index)
-    HIDDEN_DIM = 32
+    HIDDEN_DIM = 128
     ###########################
+    ## Using the Pre-trained Word-Vector
+    EMB_SEQ_SIZE, EMB_INPUT_SIZE, embedding_matrix = PreTrain_weights(X_raw_seq, word_index, HIDDEN_DIM)
+    X_raw, y_raw, word_index = Encoding(X_raw_seq,y_raw,'sequences',EMB_SEQ_SIZE)
+    X_train,X_test,y_train,y_test = train_test_split(X_raw,y_raw,train_size=0.7,shuffle=True) 
+    
     ## Train and Save Sub-Models
+    y_raw = to_categorical(y_raw).astype('int32')    
     for i in range(NUM):
         # Get Training set and Validation set
         X,X_val,y,y_val = train_test_split(X_train,y_train,
@@ -164,7 +204,8 @@ def Stacked_Ensemble(NUM):
                                            random_state=i,
                                            shuffle=True)
         # Build new model
-        model = Build_model(SEQUENCES_SIZE,LEXION_SIZE,HIDDEN_DIM)
+#        model = Build_model(SEQUENCES_SIZE,LEXION_SIZE,HIDDEN_DIM)
+        model = Build_model(EMB_SEQ_SIZE,EMB_INPUT_SIZE,HIDDEN_DIM,embedding_matrix)
         # Train the model
         Train_model(X,y,X_val,y_val,model,i)
         
@@ -188,7 +229,9 @@ def Stacked_Ensemble(NUM):
     ob_id = [seg.strip().split(",",1)[0] for seg in ob][1:]
     ob = [seg.strip().split(",",1)[1] for seg in ob][1:]
     ## Preprocessing
-    ob, ob_id, word_index = Preprocessing(ob, ob_id, 'sequences', SEQUENCES_SIZE)   
+    ob = [Preprocess(seg) for seg in ob]    
+    ## Encoding
+    ob, ob_id, word_index = Encoding(ob, ob_id, 'sequences', SEQUENCES_SIZE)   
     ## Submission
     print("Submission ...")
     pred = Stacked_prediction(all_models,model,ob)
