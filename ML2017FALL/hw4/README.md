@@ -2,25 +2,12 @@
   
 (1%) 請說明你實作的 RNN model，其模型架構、訓練過程和準確率為何？   
 	答：  
-  ![image](https://github.com/shauming1020/MachineLearningForPython/blob/master/ML2017FALL/hw4/picture/model.png?raw=true)  
-  圖(一). RNN Model 如上。  
+![image](https://github.com/shauming1020/MachineLearningForPython/blob/master/ML2017FALL/hw4/picture/model.png?raw=true)  
+  	圖(一). RNN Model。  
+![image](https://github.com/shauming1020/MachineLearningForPython/blob/master/ML2017FALL/hw4/picture/model2.PNG?raw=true)  
+	圖(二). RNN Model 參數。  
 
-| _________________________________________________________________ |                 |         |
-|-------------------------------------------------------------------|-----------------|---------|
-| Layer (type)                                                      | Output Shape    | Param # |
-| ================================================================= |                 |         |
-| input_3 (InputLayer)                                              | (None, 39)      | 0       |
-| _________________________________________________________________ |                 |         |
-| embedding_3 (Embedding)                                           | (None, 39, 128) | 7546368 |
-| _________________________________________________________________ |                 |         |
-| lstm_5 (LSTM)                                                     | (None, 39, 128) | 131584  |
-| _________________________________________________________________ |                 |         |
-| lstm_6 (LSTM)                                                     | (None, 64)      | 49408   |
-| _________________________________________________________________ |                 |         |
-| batch_normalization_3 (Batch (None, 64)                           | 256             |         |
-| _________________________________________________________________ |                 |         |
-| dense_7 (Dense)                                                   | (None, 64)      | 4160    |
-| _________________________________________________________________ |                 |         |   
+
 
 (1%) 請說明你實作的 BOW model，其模型架構、訓練過程和準確率為何？  	
  (Collaborators: )  
