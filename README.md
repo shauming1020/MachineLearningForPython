@@ -1,6 +1,9 @@
 # MachineLearningForPython
 MachineLearningForPython
-  
+
+## Install the pytorch with gpu version  
+conda install pytorch cuda100 -c pytorch
+
 ## COCO in window 10  
 https://github.com/philferriere/cocoapi  
 
