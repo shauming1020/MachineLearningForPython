@@ -7,12 +7,12 @@ But don't install the pytorch using Anaconda, because we need to pytorch-gpu ver
 Image data  
 Downloading MSCOCO train images ...  
 http://images.cocodataset.org/zips/train2017.zip  
-Downloading MSCOCO val images ..."
+Downloading MSCOCO val images ..."  
 http://images.cocodataset.org/zips/val2017.zip   
-Unzip to ".\yolact-master\data\coco\images"
+Unzip to ".\yolact-master\data\coco\images"  
 
 Download the annotation data.  
-echo "Downloading MSCOCO train/val annotations ..."
+echo "Downloading MSCOCO train/val annotations ..."  
 http://images.cocodataset.org/annotations/annotations_trainval2014.zip  
 http://images.cocodataset.org/annotations/annotations_trainval2017.zip   
 Unzip to ".\yolact-master\data\coco\annotations"  
