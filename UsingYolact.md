@@ -17,9 +17,10 @@ http://images.cocodataset.org/annotations/annotations_trainval2014.zip
 http://images.cocodataset.org/annotations/annotations_trainval2017.zip   
 Unzip to ".\yolact-master\data\coco\annotations"  
 
-# 3. Install the pytorch with gpu version  
+# 3. Install the pytorch with gpu version and torchvision  
 Key in the following instruction on Anaconda prompt:  
 conda install pytorch cuda100 -c pytorch  
+conda install -c pytorch torchvision   
 
 # 4. Install the COCO API  
 https://github.com/philferriere/cocoapi   
