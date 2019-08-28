@@ -51,6 +51,7 @@ def Preprocess(month_to_data, features, f_size, predict_term, select='raw'):
             if f == name:
                 id_features.append(i)               
     # Modify the dict, the last row is wanted to predict vaules.
+    month_to_data = month_to_data.copy()
     month_to_datay = {}
     for month, data in month_to_data.items():
         month_to_data[month] = data[id_features]
@@ -71,7 +72,7 @@ def Preprocess(month_to_data, features, f_size, predict_term, select='raw'):
         return x,y
     elif select == 'ob':
         if f_size == 9:
-            x = np.empty(shape = (240, 18 * 9),dtype = float)
+            x = np.empty(shape = (240, n_features * f_size),dtype = float)
             y = np.empty(shape = (240, 1),dtype = float)
             for idx in range(240):
                 x[idx,:] = month_to_data[idx][:,:].reshape(1,-1) 
@@ -129,30 +130,49 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         return X, w
     # loss_value      
     def loss_value(X,y,w,loss):
+        if regularization == 'l1':
+            reg = lamda * np.abs(w)
+        elif regularization == 'l2':
+            reg = lamda * np.abs(w)**2
+        elif regularization == None:
+            reg = np.zeros(w.shape)
+        reg = reg.sum()
         if loss == 'mse':
             pred = X.dot(w)
             square_error = (y-pred)**2
-            mse = square_error.sum()/len(y)
-            return mse
+            loss_value = square_error.sum()/len(y) # mse
         elif loss == 'rmse':
-            mse = loss_value(X,y,w,'mse')
-            return np.power(mse,0.5)
+            pred = X.dot(w)
+            square_error = (y-pred)**2
+            mse = square_error.sum()/len(y)
+            loss_value = np.power(mse,0.5) # rmse
+        return loss_value + reg
+   
     # Optmize function
-    def update_parameters(X,y,w,sigma,opt):
+    def update_parameters(X,y,w,sigma,m,opt,b1=0.9,b2=0.999):
+        EPSILON = 1e-08 # To avoid thah sigma divied by nan or zero
         if regularization == 'l1':
-            reg = lamda * w
-        elif regularization == 'l2':
-            reg = 2. * lamda * w
-        elif regularization == None:
             reg = lamda
+        elif regularization == 'l2':
+            reg = 2. * lamda * np.abs(w)
+        elif regularization == None:
+            reg = 0.
         pred = X.dot(w)
         grad = -2. * np.dot(X.T,y-pred) + reg
         if opt == 'ada':
             sigma += np.sqrt(grad**2)
-            w -= grad * learning_rate / sigma 
+            w -= grad * learning_rate / (sigma + EPSILON)
+        elif opt == 'RMSProp':
+            sigma = np.sqrt(b2 * sigma**2 + (1-b2) * grad**2)
+            w -= grad * learning_rate / (sigma + EPSILON) 
+        elif opt == 'Adam':
+            m = (b1 * m + (1-b1) * grad) / (1-b1)
+            sigma = np.sqrt((b2 * sigma + (1-b2) * grad**2) / (1-b2))
+            w -= m * learning_rate / (sigma + EPSILON)
         else:
-            w -= grad * learning_rate
-        return w, sigma
+            m = b1 * m + (1-b1) * grad # momentum
+            w -= m * learning_rate
+        return w, sigma, m
     
     def get_mini_batch(X,y,batch_size):
         mini_batches = []
@@ -185,9 +205,10 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
     X_v, w_v = initial(X_v,weights,bias)  
     # Set model parameter
     sigma = None
+    m = 0
     if opt == 'stg':
         batch_size = 1
-    elif opt == 'ada':
+    elif opt == 'ada' or 'RMSProp' or 'Adam':
         sigma = np.zeros(w.shape)   
     # Mini-Batch Training    
     cost_history = []
@@ -200,14 +221,14 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         
         if batch_size == None:
                 # Update weights
-                w, sigma = update_parameters(X_t,y_t,w,sigma,opt)    
+                w, sigma, m = update_parameters(X_t,y_t,w,sigma,m,opt)    
         # Using mini-batch, get batch data
         else:
             mini_batches = get_mini_batch(X_t, y_t, batch_size)
             for mini_batch in mini_batches: 
                 X_mini, y_mini = mini_batch 
                 # Update weights
-                w, sigma = update_parameters(X_mini,y_mini,w,sigma,opt)
+                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,opt)
         # Cost
         cost = loss_value(X_t,y_t,w,loss) # on training set
         cost_v = loss_value(X_v,y_v,w,loss) # on validation ser
@@ -248,11 +269,11 @@ def Plot_loss_history(history,save_model):
     plt.xlabel("epoch")
     plt.ylabel("loss")
     plt.title("Training Process")
-    plt.show()
     if save_model == False:     
         plt.savefig(PIC_PATH+'/_history.png')
     else:
         plt.savefig(PIC_PATH+'/'+save_model+'_history.png')
+    plt.show()
     plt.close()
 
 def Sample():
@@ -323,31 +344,38 @@ def Best():
     month_to_data = Create_dict(raw)
     ob_to_data = Create_dict(ob_raw_data,'ob')
     ## Preprocess to split features and true data
-    features = ['PM2.5','PM2.5','PM2.5']
-    f_size = 8
+    f_size = 7
     predict_term = 'PM2.5'
-    X, y = Preprocess(month_to_data, features, f_size, predict_term)
-    ob_X,ob_y,ob_X_p,ob_y_p= Preprocess(ob_to_data, features, f_size, predict_term,'ob') 
     
+    ## Build the model
+    features = FEATURES + ['PM2.5','PM2.5']
+    X, y = Preprocess(month_to_data, features, f_size, predict_term)
+    ob_X,ob_y,ob_X_p,ob_y_p= Preprocess(ob_to_data, features, f_size, predict_term,'ob')    
+    X = np.vstack((X,2*ob_X)) # Concat X and ob_X
+    
+    # Model define: y = All + 2*PM2.5 + ALL^2 + 2*PM2.5^2
+    X = np.hstack((X,X**2,X**3)) 
+    ob_X_p = np.hstack((ob_X_p,ob_X_p**2,ob_X_p**3))
+    
+    y = np.vstack((y,ob_y))
     ## Normalization
-    X,mean,std = Normalization(np.vstack((X,ob_X)))
+    X,mean,std = Normalization(X)
     ## Split to training and testing set
-#    X_train, X_test, y_train, y_test = Split_train_test(X,y,train_rate=0.9)
-    X_train, y_train = X, np.vstack((y,ob_y))
+    X_train, y_train = X, y
     
     ##  Training
     val=True
-    validation_split=0.01
+    validation_split=0.001
     bias=True
     weights='zeros'
     loss='rmse'
-    opt='ada'
-    regularization='l1'
-    lamda= 0.01
-    learning_rate=256
+    opt='Adam'
+    regularization=None
+    lamda=0.0005
+    learning_rate=0.001
     epochs=1024
-    batch_size=1024
-    patience=None
+    batch_size=512
+    patience=256
     save_model='best'
     
     model, history = Fit(X_train,y_train,val,validation_split,bias,weights,
@@ -356,11 +384,12 @@ def Best():
 
     ## Read in Observe set
     model = np.load(MODE_PATH+'/'+save_model+'_weight.npy')
-    ob_X_p = Normalization(ob_X_p,mean,std,trans=True)
+    ob_X_p = Normalization(ob_X_p,mean,std,trans=True) 
     # Add the bias-term to ob_X_p
     ob_X_p = np.concatenate((np.ones(shape = (ob_X_p.shape[0],1)),ob_X_p),axis = 1).astype(float)
     ob_y_p = ob_X_p.dot(model)  
     # Plot the history
+    history = np.load(HIS_PATH+'/'+save_model+'_history.npy')
     Plot_loss_history(history,save_model)
     ## Write file
     print('Submission...')
