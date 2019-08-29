@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 RAWDATA_PATH = './dataset/train.csv'
 OBSERVE_PATH = './dataset/test.csv'
 SUBMISSION_PATH = './dataset/sample_submission.csv'
-RAW_FEATURE_PATH = './dataset/X_train' # after proprecessing with raw data
+RAW_FEATURE_PATH = './dataset/X_train' # after one-hot encoding with raw data
 RAW_LABEL_PATH = './dataset/Y_train'
 OB_FEATURE_PATH = './dataset/X_test'
 #RAWDATA_PATH = sys.argv[1]
@@ -30,14 +30,7 @@ class Data():
             rows = np.array(list(csv.reader(csvfile)))  
             self.data[name] = rows[1:].astype(float) # setting the data
             self.feature[name] = rows[0].tolist()
-    def Get_feature(self,name,features):
-        idx = []
-        for i, key in enumerate(self.feature[name]):
-            for f in features:
-                if f == key:
-                    idx.append(i)
-        return self.data[name][:,idx]
-            
+
 # Data Processing - Normalization, One-hot encoding, discreate presentation
 def Normalization(x,method='Rescaling',mean_or_max='None',std_or_min='None',trans=False):
     if trans == False:
@@ -85,42 +78,33 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         else: # linear
             return z    
 
-#    # Regularization
-#    def regular_term(mount,select,lamda,w):
-#        if mount == 'loss_value':
-#            if select == 'l1':
-#                reg = lamda * np.sum(w)
-#            elif select == 'l2':
-#                reg = lamda * np.sum(w**2)
-#            elif select == 'non-negative-l1':
-#                reg = lamda * np.sum(np.abs(w))
-#            elif select == 'non-negative-l2':
-#                reg = lamda * np.sum(np.abs(w)**2)
-#            elif select == None:
-#                reg = np.sum(np.zeros(w.shape))
-#        elif mount == 'optimize':
-#            if select == 'non-negative-l1' or 'l1':
-#                reg = lamda
-#            elif select == 'l2':
-#                reg = 2. *lamda * w
-#            elif select == 'non-negative-l2':
-#                reg = 2. *lamda * np.abs(w)
-#            elif select == None:
-#                reg = 0.
-#        return reg
+    # Regularization
+    def regular_term(mount,select,lamda,w):
+        if mount == 'loss_value':
+            if select == 'l1':
+                reg = lamda * np.sum(w)
+            elif select == 'l2':
+                reg = lamda * np.sum(w**2)
+            elif select == 'non-negative-l1':
+                reg = lamda * np.sum(np.abs(w))
+            elif select == 'non-negative-l2':
+                reg = lamda * np.sum(np.abs(w)**2)
+            elif select == None:
+                reg = np.sum(np.zeros(w.shape))
+        elif mount == 'optimize':
+            if select == 'non-negative-l1' or 'l1':
+                reg = lamda
+            elif select == 'l2':
+                reg = 2. *lamda * w
+            elif select == 'non-negative-l2':
+                reg = 2. *lamda * np.abs(w)
+            elif select == None:
+                reg = 0.
+        return reg
       
     # Loss function      
     def loss_value(X,y,w,loss,act):
-        if regularization == 'l1':
-            reg = lamda * np.sum(w)
-        elif regularization == 'l2':
-            reg = lamda * np.sum(w**2)
-        elif regularization == 'non-negative-l1':
-            reg = lamda * np.sum(np.abs(w))
-        elif regularization == 'non-negative-l2':
-            reg = lamda * np.sum(np.abs(w)**2)
-        elif regularization == None:
-            reg = np.sum(np.zeros(w.shape))
+        reg = regular_term('loss_value',regularization,lamda,w)
         if loss == 'mse':
             pred = activation(X.dot(w),act)
             square_error = (y-pred)**2
@@ -137,18 +121,10 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         return (loss_value + reg)   
 
     # Optmize function
-    def update_parameters(X,y,w,sigma,m,t,opt,b1=0.9,b2=0.999):
+    def update_parameters(grad,w,sigma,m,t,opt,b1=0.9,b2=0.999):
         EPSILON = 1e-08 # To avoid thah sigma divied by nan or zero
-        if regularization == 'non-negative-l1' or 'l1':
-            reg = lamda
-        elif regularization == 'l2':
-            reg = 2. *lamda * w
-        elif regularization == 'non-negative-l2':
-            reg = 2. *lamda * np.abs(w)
-        elif regularization == None:
-            reg = 0.
-        pred = activation(X.dot(w),act)
-        grad = -2. * np.dot(X.T,y-pred) + reg
+        reg = regular_term('optimize',regularization,lamda,w)
+        grad += reg
         if opt == 'ada':
             sigma += np.sqrt(grad**2)
             w -= grad * learning_rate / (sigma + EPSILON)
@@ -230,8 +206,11 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         if batch_size == None:
             # Update learning
             learning_rate = decay_learing_rate(learning_rate,epoch,epochs,decay,decay_rate)    
+            # Update gradient
+            pred = activation(X_t.dot(w),act)
+            grad = -2. * np.dot(X_t.T,y_t-pred)            
             # Update weights
-            w, sigma, m = update_parameters(X_t,y_t,w,sigma,m,epoch,opt)    
+            w, sigma, m = update_parameters(grad,w,sigma,m,epoch,opt)    
         # Using mini-batch, get batch data
         else:
             mini_batches = get_mini_batch(X_t, y_t, batch_size)     
@@ -239,8 +218,11 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
                 X_mini, y_mini = mini_batch 
                 # Update learning
                 learning_rate = decay_learing_rate(learning_rate,t,gobal_t,decay,decay_rate)                
+                # Udate gradient
+                pred = activation(X_mini.dot(w),act)
+                grad = -2. * np.dot(X_mini.T,y_mini-pred)
                 # Update weights
-                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,t,opt)
+                w, sigma, m = update_parameters(grad,w,sigma,m,t,opt)
                 t+=1 
         # Cost
         cost = loss_value(X_t,y_t,w,loss,act) # on training set
@@ -318,7 +300,7 @@ def Sample():
     raw.Read('y_raw',RAW_LABEL_PATH)
 
     col = [range(106)]
-    nor,mean,std = Normalization(raw.data['X_raw'][:,col])
+    nor,mean,std = Normalization(raw.data['X_raw'][:,col],'Standardization')
     raw.data['X_raw'][:,col] = nor
     X_train, y_train = raw.data['X_raw'], raw.data['y_raw']
     
@@ -350,23 +332,25 @@ def Sample():
 #    ##Load model
 #    model = np.load(MODE_PATH+'/'+save_model+'_weight.npy')
 
+    # Plot the history
+    Plot_loss_history(cost_history,save_model+'_loss_')
+    Plot_loss_history(acc_history,save_model+'_acc_')
+
     ## Read in Observe set
     ob = Data()
     ob.Read('X_test',OB_FEATURE_PATH)
-    ob.data['X_test'][:,col] = Normalization(ob.data['X_test'][:,col],'Rescaling',mean,std,trans=True)
+    ob.data['X_test'][:,col] = Normalization(ob.data['X_test'][:,col],'Standardization',mean,std,trans=True)
     ob_X_p = ob.data['X_test']
     
     # Add the bias-term to ob_X_p
     if bias:
         ob_X_p = np.concatenate((np.ones(shape = (ob_X_p.shape[0],1)),ob_X_p),axis = 1).astype(float)
+    
+    # Predict
     ob_y_z = ob_X_p.dot(model)
     ob_y_p = np.clip(1 / (1.0 + np.exp(-ob_y_z)), 1e-6, 1-1e-6) 
     ob_y_c = np.round(ob_y_p)
-    
-    # Plot the history
-    Plot_loss_history(cost_history,save_model+'_loss_')
-    Plot_loss_history(acc_history,save_model+'_acc_')
-    
+        
     ## Write file
     print('Submission')
     with open(SUBMISSION_PATH,"w") as f:
@@ -374,5 +358,84 @@ def Sample():
         for i,value in enumerate(ob_y_c):
             f.write('%d,%d\n' %(i+1, value))
 
+def Ensemble(Num):
+    ## Read in raw data
+    raw = Data()
+    raw.Read('X_raw',RAW_FEATURE_PATH)
+    raw.Read('y_raw',RAW_LABEL_PATH)
+
+    norm_col = [range(106)]
+    nor,mean,std = Normalization(raw.data['X_raw'][:,norm_col],'Standardization')
+    raw.data['X_raw'][:,norm_col] = nor
+    X_train, y_train = raw.data['X_raw'], raw.data['y_raw']
+    
+    ## Ensemble Learning
+    for i in range(1,Num+1):
+        # Suffle 
+        perm = np.random.permutation(len(y_train))
+        X_train, y_train = X_train[perm], y_train[perm]
+                
+        print('---Training with',i,'model---')
+        ##  Training
+        val=True
+        validation_split=0.3
+        bias=True
+        weights='zeros'
+        loss='cross_entropy'
+        opt='Adam'
+        act='sigmoid'
+        regularization='non-negative-l2'
+        lamda= 0.0007
+        learning_rate=0.001
+        decay=None
+        decay_rate=1
+        epochs=256
+        batch_size=32
+        monitor='acc'
+        patience=64
+        save_model='sample_'+str(i)
+        
+        model, cost_history, acc_history\
+            = Fit(X_train,y_train,val,validation_split,bias,weights,
+                  loss,opt,act,regularization,lamda,learning_rate,
+                  decay,decay_rate,epochs,batch_size,
+                  monitor,patience,save_model)
+    
+    ## Read in Observe set
+    ob = Data()
+    ob.Read('X_test',OB_FEATURE_PATH)
+    ob.data['X_test'][:,norm_col] = Normalization(ob.data['X_test'][:,norm_col],'Standardization',mean,std,trans=True)
+    ob_X_p = ob.data['X_test']
+    
+    # Add the bias-term to ob_X_p
+    if bias:
+        ob_X_p = np.concatenate((np.ones(shape = (ob_X_p.shape[0],1)),ob_X_p),axis = 1).astype(float)
+    
+    ## Ensmeble Predict       
+    result = []
+    for i in range(1,Num+1):
+        save_model='sample_'+str(i)
+        # Load model
+        model = np.load(MODE_PATH+'/'+save_model+'_weight.npy')
+        # Predict
+        ob_y_z = ob_X_p.dot(model)
+        ob_y_p = np.clip(1 / (1.0 + np.exp(-ob_y_z)), 1e-6, 1-1e-6) 
+        ob_y_c = np.round(ob_y_p).reshape(-1,)
+        result.append(ob_y_c)
+
+    # Hard-Voting
+    result = np.asarray(result)
+    vot = np.sum(result,axis=0)
+    half_people = int(result.shape[0] / 2)
+    result = np.asarray([vot > half_people],dtype='int').reshape(-1,1)
+    
+    ## Write file
+    print('Submission...')
+    with open(SUBMISSION_PATH,"w") as f:
+        f.write('id,label\n') 
+        for i,value in enumerate(result):
+            f.write('%d,%d\n' %(i+1, value))
+    print('Done...!')
+
 if __name__ == '__main__':    
-    Sample()
+    Ensemble(20)
