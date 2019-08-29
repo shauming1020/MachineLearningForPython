@@ -371,10 +371,16 @@ def Ensemble(Num):
     
     ## Ensemble Learning
     for i in range(1,Num+1):
-        # Suffle 
-        perm = np.random.permutation(len(y_train))
-        X_train, y_train = X_train[perm], y_train[perm]
-                
+        # Bagging
+        sample_idx = np.random.choice(X_train.shape[0],X_train.shape[0])
+        X_train , y_train = X_train[sample_idx], y_train[sample_idx]
+        
+        # Dropout - drop the weight
+#        dropout_rate = 0.2
+#        drop_feature = np.random.randint(1,X_train.shape[1],size=int(X_train.shape[1]*dropout_rate))
+#        X_train[:,drop_feature] = np.full([X_train.shape[0],len(drop_feature)], np.nan)
+#        X_train[:,drop_feature] = np.full([X_train.shape[0],len(drop_feature)], 0)
+        
         print('---Training with',i,'model---')
         ##  Training
         val=True
@@ -389,10 +395,10 @@ def Ensemble(Num):
         learning_rate=0.001
         decay=None
         decay_rate=1
-        epochs=256
+        epochs=128
         batch_size=32
         monitor='acc'
-        patience=64
+        patience=16
         save_model='sample_'+str(i)
         
         model, cost_history, acc_history\
@@ -423,12 +429,12 @@ def Ensemble(Num):
         ob_y_c = np.round(ob_y_p).reshape(-1,)
         result.append(ob_y_c)
 
-    # Hard-Voting
+    # Voting
     result = np.asarray(result)
     vot = np.sum(result,axis=0)
     half_people = int(result.shape[0] / 2)
     result = np.asarray([vot > half_people],dtype='int').reshape(-1,1)
-    
+
     ## Write file
     print('Submission...')
     with open(SUBMISSION_PATH,"w") as f:
