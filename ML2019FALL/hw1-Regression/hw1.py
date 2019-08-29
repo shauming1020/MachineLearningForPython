@@ -149,7 +149,7 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         return loss_value + reg
    
     # Optmize function
-    def update_parameters(X,y,w,sigma,m,opt,b1=0.9,b2=0.999):
+    def update_parameters(X,y,w,sigma,m,t,opt,b1=0.9,b2=0.999):
         EPSILON = 1e-08 # To avoid thah sigma divied by nan or zero
         if regularization == 'l1':
             reg = lamda
@@ -166,20 +166,21 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
             sigma = np.sqrt(b2 * sigma**2 + (1-b2) * grad**2)
             w -= grad * learning_rate / (sigma + EPSILON) 
         elif opt == 'Adam':
-            m = (b1 * m + (1-b1) * grad) / (1-b1)
-            sigma = np.sqrt((b2 * sigma + (1-b2) * grad**2) / (1-b2))
-            w -= m * learning_rate / (sigma + EPSILON)
+            m = (b1 * m + (1-b1) * grad)
+            sigma = (b2 * sigma + (1-b2) * grad**2)
+            m_t = m / (1 - b1**t)
+            sigma_t =  sigma / (1 - b2**t)
+            w -= m_t * learning_rate / (np.sqrt(sigma_t) + EPSILON)
         else:
-            m = b1 * m + (1-b1) * grad # momentum
-            w -= m * learning_rate
+            m = b1 * m + learning_rate * grad # momentum
+            w -= m 
         return w, sigma, m
     
+    # Mini-batch
     def get_mini_batch(X,y,batch_size):
         mini_batches = []
         data = np.hstack((X,y))
-        np.random.shuffle(data) 
-        n_minibatches = data.shape[0] 
-        for i in range(n_minibatches + 1): 
+        for i in range(int(np.floor(len(y)/batch_size))):
             mini_batch = data[i * batch_size:(i + 1)*batch_size, :] 
             X_mini = mini_batch[:, :-1] 
             Y_mini = mini_batch[:, -1].reshape((-1, 1)) 
@@ -214,21 +215,24 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
     cost_history = []
     see_best_cost,see = None,0
     best_w = np.copy(w) # if we use '=', it will assign the same address.
-    for epoch in range(epochs):
+    for epoch in range(1,epochs):
         # Shuffle 
         perm = np.random.permutation(len(y_t))
         X_t, y_t = X_t[perm], y_t[perm]
         
+        # Parameter
+        t = 1
         if batch_size == None:
                 # Update weights
-                w, sigma, m = update_parameters(X_t,y_t,w,sigma,m,opt)    
+                w, sigma, m = update_parameters(X_t,y_t,w,sigma,m,epoch,opt)    
         # Using mini-batch, get batch data
         else:
             mini_batches = get_mini_batch(X_t, y_t, batch_size)
             for mini_batch in mini_batches: 
                 X_mini, y_mini = mini_batch 
                 # Update weights
-                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,opt)
+                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,t,opt)
+                t+=1
         # Cost
         cost = loss_value(X_t,y_t,w,loss) # on training set
         cost_v = loss_value(X_v,y_v,w,loss) # on validation ser
@@ -344,7 +348,7 @@ def Best():
     month_to_data = Create_dict(raw)
     ob_to_data = Create_dict(ob_raw_data,'ob')
     ## Preprocess to split features and true data
-    f_size = 7
+    f_size = 5
     predict_term = 'PM2.5'
     
     ## Build the model
@@ -370,12 +374,12 @@ def Best():
     weights='zeros'
     loss='rmse'
     opt='Adam'
-    regularization=None
+    regularization='l2'
     lamda=0.0005
     learning_rate=0.001
-    epochs=1024
-    batch_size=512
-    patience=256
+    epochs=10240
+    batch_size=32
+    patience=None
     save_model='best'
     
     model, history = Fit(X_train,y_train,val,validation_split,bias,weights,
