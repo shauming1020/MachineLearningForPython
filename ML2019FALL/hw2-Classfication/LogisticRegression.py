@@ -23,13 +23,20 @@ PIC_PATH = './picture'
 class Data():
     def __init__(self):
         self.data = {}
-        self.feature = ['AMB_TEMP','CH4','CO','NMHC','NO','NO2','NOx','O3','PM10','PM2.5',
-            'RAINFALL','RH','SO2','THC','WD_HR','WIND_DIREC','WIND_SPEED','WS_HR']
+        self.feature = {}
     # row : number of data as 'n', col : number of feature as 'm'
     def Read(self,name,path):
-        with open(path,newline = '') as csvfile:
-            rows = np.array(list(csv.reader(csvfile))[1:] ,dtype = float)  
-            self.data[name] = rows # setting the data
+        with open(path,newline = '',encoding='utf-8') as csvfile:
+            rows = np.array(list(csv.reader(csvfile)))  
+            self.data[name] = rows[1:].astype(float) # setting the data
+            self.feature[name] = rows[0].tolist()
+    def Get_feature(self,name,features):
+        idx = []
+        for i, key in enumerate(self.feature[name]):
+            for f in features:
+                if f == key:
+                    idx.append(i)
+        return self.data[name][:,idx]
             
 # Data Processing - Normalization, One-hot encoding, discreate presentation
 def Normalization(x,method='Rescaling',mean_or_max='None',std_or_min='None',trans=False):
@@ -77,16 +84,43 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
             return np.clip(1 / (1.0 + np.exp(-z)), 1e-6, 1-1e-6) 
         else: # linear
             return z    
-        
+
+#    # Regularization
+#    def regular_term(mount,select,lamda,w):
+#        if mount == 'loss_value':
+#            if select == 'l1':
+#                reg = lamda * np.sum(w)
+#            elif select == 'l2':
+#                reg = lamda * np.sum(w**2)
+#            elif select == 'non-negative-l1':
+#                reg = lamda * np.sum(np.abs(w))
+#            elif select == 'non-negative-l2':
+#                reg = lamda * np.sum(np.abs(w)**2)
+#            elif select == None:
+#                reg = np.sum(np.zeros(w.shape))
+#        elif mount == 'optimize':
+#            if select == 'non-negative-l1' or 'l1':
+#                reg = lamda
+#            elif select == 'l2':
+#                reg = 2. *lamda * w
+#            elif select == 'non-negative-l2':
+#                reg = 2. *lamda * np.abs(w)
+#            elif select == None:
+#                reg = 0.
+#        return reg
+      
     # Loss function      
     def loss_value(X,y,w,loss,act):
         if regularization == 'l1':
-            reg = lamda * np.abs(w)
+            reg = lamda * np.sum(w)
         elif regularization == 'l2':
-            reg = lamda * np.abs(w)**2
+            reg = lamda * np.sum(w**2)
+        elif regularization == 'non-negative-l1':
+            reg = lamda * np.sum(np.abs(w))
+        elif regularization == 'non-negative-l2':
+            reg = lamda * np.sum(np.abs(w)**2)
         elif regularization == None:
-            reg = np.zeros(w.shape)
-        reg = reg.sum()
+            reg = np.sum(np.zeros(w.shape))
         if loss == 'mse':
             pred = activation(X.dot(w),act)
             square_error = (y-pred)**2
@@ -103,12 +137,14 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
         return (loss_value + reg)   
 
     # Optmize function
-    def update_parameters(X,y,w,sigma,m,opt,b1=0.9,b2=0.999):
+    def update_parameters(X,y,w,sigma,m,t,opt,b1=0.9,b2=0.999):
         EPSILON = 1e-08 # To avoid thah sigma divied by nan or zero
-        if regularization == 'l1':
+        if regularization == 'non-negative-l1' or 'l1':
             reg = lamda
         elif regularization == 'l2':
-            reg = 2. * lamda * np.abs(w)
+            reg = 2. *lamda * w
+        elif regularization == 'non-negative-l2':
+            reg = 2. *lamda * np.abs(w)
         elif regularization == None:
             reg = 0.
         pred = activation(X.dot(w),act)
@@ -120,12 +156,14 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
             sigma = np.sqrt(b2 * sigma**2 + (1-b2) * grad**2)
             w -= grad * learning_rate / (sigma + EPSILON) 
         elif opt == 'Adam':
-            m = (b1 * m + (1-b1) * grad) / (1-b1)
-            sigma = np.sqrt((b2 * sigma + (1-b2) * grad**2) / (1-b2))
-            w -= m * learning_rate / (sigma + EPSILON)
+            m = (b1 * m + (1-b1) * grad)
+            sigma = (b2 * sigma + (1-b2) * grad**2)
+            m_t = m / (1 - b1**t)
+            sigma_t =  sigma / (1 - b2**t)
+            w -= m_t * learning_rate / (np.sqrt(sigma_t) + EPSILON)
         else:
-            m = b1 * m + (1-b1) * grad # momentum
-            w -= m * learning_rate
+            m = b1 * m + learning_rate * grad # momentum
+            w -= m 
         return w, sigma, m
     
     # Decay Learning rate
@@ -144,9 +182,7 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
     def get_mini_batch(X,y,batch_size):
         mini_batches = []
         data = np.hstack((X,y))
-        np.random.shuffle(data) 
-        n_minibatches = data.shape[0] 
-        for i in range(n_minibatches + 1): 
+        for i in range(int(np.floor(len(y)/batch_size))):
             mini_batch = data[i * batch_size:(i + 1)*batch_size, :] 
             X_mini = mini_batch[:, :-1] 
             Y_mini = mini_batch[:, -1].reshape((-1, 1)) 
@@ -170,7 +206,7 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
     # Initialization
     X_t, w = initial(X_t,weights,bias)
     X_v, _ = initial(X_v,weights,bias)  
-     # Set model parameter
+    ## Set model parameter
     sigma = None
     m = 0
     if opt == 'sgd':
@@ -181,25 +217,31 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
     cost_history, acc_history = [], []
     see_best,see = None,0
     best_w = np.copy(w) # if we use '=', it will assign the same address.
+    # Decay learning rate
+    if batch_size != None:
+        gobal_t = int(np.floor(len(y_t)/batch_size))
     for epoch in range(1,epochs):
-
+        # Parameter
+        t = 1 # for Adam , adaptive learning depend on time && for decay learning rate
         # Shuffle 
         perm = np.random.permutation(len(y_t))
         X_t, y_t = X_t[perm], y_t[perm]
         
-        # Update learning
-        learning_rate = decay_learing_rate(learning_rate,epoch,epochs,decay,decay_rate)
-        
         if batch_size == None:
-                # Update weights
-                w, sigma = update_parameters(X_t,y_t,w,sigma,m,opt)    
+            # Update learning
+            learning_rate = decay_learing_rate(learning_rate,epoch,epochs,decay,decay_rate)    
+            # Update weights
+            w, sigma, m = update_parameters(X_t,y_t,w,sigma,m,epoch,opt)    
         # Using mini-batch, get batch data
         else:
-            mini_batches = get_mini_batch(X_t, y_t, batch_size)
+            mini_batches = get_mini_batch(X_t, y_t, batch_size)     
             for mini_batch in mini_batches: 
                 X_mini, y_mini = mini_batch 
+                # Update learning
+                learning_rate = decay_learing_rate(learning_rate,t,gobal_t,decay,decay_rate)                
                 # Update weights
-                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,opt)
+                w, sigma, m = update_parameters(X_mini,y_mini,w,sigma,m,t,opt)
+                t+=1 
         # Cost
         cost = loss_value(X_t,y_t,w,loss,act) # on training set
         cost_v = loss_value(X_v,y_v,w,loss,act) # on validation ser
@@ -223,14 +265,14 @@ def Fit(X,y,val=None,validation_split=0.0,bias=True,weights='zeros',
             elif monitor == 'acc':
                 moni = acc
             if see_best == None:
-                see_best = np.round(moni,decimals=3)    
-            elif see_best > cost:   
+                see_best = np.round(moni,decimals=3)                
+            elif (see_best > moni and monitor == 'loss') or (see_best < moni and monitor =='acc'):   
                 see_best = np.round(moni,decimals=3)
                 see = 0
                 best_w = np.copy(w)
                 continue
-            elif see_best < cost:      
-                print('The current'+monitor+'%.3f'%moni,'is not best than',see_best) 
+            elif (see_best <= moni and monitor == 'loss') or (see_best >= moni and monitor =='acc'):      
+                print('The current '+monitor+' %.3f'%moni,'is not best than',see_best) 
                 if see < patience:
                     continue
                 else:
@@ -274,7 +316,8 @@ def Sample():
     raw = Data()
     raw.Read('X_raw',RAW_FEATURE_PATH)
     raw.Read('y_raw',RAW_LABEL_PATH)
-    col = [0,1,3,4,5]
+
+    col = [range(106)]
     nor,mean,std = Normalization(raw.data['X_raw'][:,col])
     raw.data['X_raw'][:,col] = nor
     X_train, y_train = raw.data['X_raw'], raw.data['y_raw']
@@ -285,17 +328,17 @@ def Sample():
     bias=True
     weights='zeros'
     loss='cross_entropy'
-    opt='vanilla'
+    opt='Adam'
     act='sigmoid'
-    regularization='l1'
-    lamda= 0.001
-    learning_rate=0.2
-    decay='sqrt'
+    regularization='non-negative-l2'
+    lamda= 0.0001
+    learning_rate=0.001
+    decay=None
     decay_rate=1
-    epochs=40
-    batch_size=32
+    epochs=1024
+    batch_size=16
     monitor='acc'
-    patience=None
+    patience=128
     save_model='sample'
     
     model, cost_history, acc_history\
@@ -325,6 +368,7 @@ def Sample():
     Plot_loss_history(acc_history,save_model+'_acc_')
     
     ## Write file
+    print('Submission')
     with open(SUBMISSION_PATH,"w") as f:
         f.write('id,label\n') 
         for i,value in enumerate(ob_y_c):
