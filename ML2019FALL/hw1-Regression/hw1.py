@@ -339,7 +339,7 @@ def Sample():
             content = ['id_'+str(i),ob_y_p[i][0]]
             w.writerow(content) 
 
-def Best():
+def Ensemble(Num):
     ## Read in raw data
     with open(RAWDATA_PATH) as f:
         raw = np.genfromtxt(f,delimiter=',')
@@ -348,53 +348,67 @@ def Best():
     month_to_data = Create_dict(raw)
     ob_to_data = Create_dict(ob_raw_data,'ob')
     ## Preprocess to split features and true data
-    f_size = 5
+    f_size = 7
     predict_term = 'PM2.5'
     
     ## Build the model
-    features = FEATURES + ['PM2.5','PM2.5']
+    features = FEATURES
     X, y = Preprocess(month_to_data, features, f_size, predict_term)
     ob_X,ob_y,ob_X_p,ob_y_p= Preprocess(ob_to_data, features, f_size, predict_term,'ob')    
-    X = np.vstack((X,2*ob_X)) # Concat X and ob_X
-    
-    # Model define: y = All + 2*PM2.5 + ALL^2 + 2*PM2.5^2
-    X = np.hstack((X,X**2,X**3)) 
-    ob_X_p = np.hstack((ob_X_p,ob_X_p**2,ob_X_p**3))
-    
+    X = np.vstack((X,ob_X)) # Concat X and ob_X
+#    # Model define: y = All + ALL^2
+#    X = np.hstack((X,X**2)) 
+#    ob_X_p = np.hstack((ob_X_p,ob_X_p**2))
     y = np.vstack((y,ob_y))
     ## Normalization
     X,mean,std = Normalization(X)
-    ## Split to training and testing set
-    X_train, y_train = X, y
     
-    ##  Training
-    val=True
-    validation_split=0.001
-    bias=True
-    weights='zeros'
-    loss='rmse'
-    opt='Adam'
-    regularization='l2'
-    lamda=0.0005
-    learning_rate=0.001
-    epochs=10240
-    batch_size=32
-    patience=None
-    save_model='best'
-    
-    model, history = Fit(X_train,y_train,val,validation_split,bias,weights,
-                      loss,opt,regularization,lamda,learning_rate,
-                      epochs,batch_size,patience,save_model)
+    ## Ensemble
+    for i in range(1,Num+1):
+        print('---Training with',i,'model---')
+        ## Bagging
+        sample_idx = np.random.choice(X.shape[0],X.shape[0])
+        X_train, y_train = X[sample_idx,:], y[sample_idx] 
+
+        ##  Training
+        val=True
+        validation_split=0.2
+        bias=True
+        weights='zeros'
+        loss='rmse'
+        opt='Adam'
+        regularization='l2'
+        lamda=0.0001
+        learning_rate=1
+        epochs=1024
+        batch_size=None
+        patience=128
+        save_model='best_'+str(i)
+        
+        model, history = Fit(X_train,y_train,val,validation_split,bias,weights,
+                          loss,opt,regularization,lamda,learning_rate,
+                          epochs,batch_size,patience,save_model)
 
     ## Read in Observe set
-    model = np.load(MODE_PATH+'/'+save_model+'_weight.npy')
     ob_X_p = Normalization(ob_X_p,mean,std,trans=True) 
     # Add the bias-term to ob_X_p
-    ob_X_p = np.concatenate((np.ones(shape = (ob_X_p.shape[0],1)),ob_X_p),axis = 1).astype(float)
-    ob_y_p = ob_X_p.dot(model)  
-    # Plot the history
-    history = np.load(HIS_PATH+'/'+save_model+'_history.npy')
-    Plot_loss_history(history,save_model)
+    if bias:
+        ob_X_p = np.concatenate((np.ones(shape = (ob_X_p.shape[0],1)),ob_X_p),axis = 1).astype(float)
+    
+    ## Ensemble predict
+    result = []
+    for i in range(1,Num+1):
+        save_model='best_'+str(i)
+        # Load model
+        model = np.load(MODE_PATH+'/'+save_model+'_weight.npy')        
+        # Predict
+        ob_y_p = ob_X_p.dot(model).reshape(-1,)
+        result.append(ob_y_p)
+
+    # Average
+    result = np.asarray(result)
+    result = np.mean(result,axis=0).reshape(-1,1)
+
     ## Write file
     print('Submission...')
     with open(SUBMISSION_PATH,"w") as f:
@@ -402,8 +416,9 @@ def Best():
         title = ['id','value']
         w.writerow(title) 
         for i in range(240):
-            content = ['id_'+str(i),ob_y_p[i][0]]
+            content = ['id_'+str(i),result[i][0]]
             w.writerow(content) 
+    print('Done...!')
 
 if __name__ == '__main__':    
-    Best()
+    Ensemble(20)
