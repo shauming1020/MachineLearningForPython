@@ -74,7 +74,7 @@ def Encoding(y,n_class,method='One-Hot'):
         encoding.scatter_(1,y.view(-1,1),1)
     return encoding
 
-def Image_Augmentation(imgs, label):
+def ImageDataGenerator(imgs, label):
     def flip(x, dim):
         indices = [slice(None)] * x.dim()
         indices[dim] = torch.arange(x.size(dim) - 1, -1, -1,
@@ -82,7 +82,7 @@ def Image_Augmentation(imgs, label):
         return x[tuple(indices)]
     aug, aug_label = imgs.clone(), label.clone()
     for i in range(len(aug)):
-        aug[i] = flip(aug[i],2) # hor flip
+        aug[i] = flip(aug[i],2) # horizontal_flip
     imgs, label = torch.cat((imgs,aug)), torch.cat((label,aug_label))
     return imgs, label
     
@@ -158,20 +158,34 @@ class VGG16(nn.Module):
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(512*1*1, 4096), ## check Linear input size
+            nn.Linear(512*1*1, 4096), # need to check Linear input size
             nn.ReLU(True),
             nn.Dropout(), 
             nn.Linear(4096, 4096),
             nn.ReLU(True),
             nn.Dropout(),
-            nn.Linear(4096, n_class)
+            nn.Linear(4096, 1000),
+            nn.ReLU(True),
+            nn.Dropout(), 
+            nn.Linear(1000, n_class)
         )
         
     def forward(self, x):
         out = self.cnn(x)
         out = out.view(out.size()[0], -1) # Flatten
         return self.fc(out)
-    
+
+
+
+
+  
+def Parameters_Count(model,select):  
+    if select == 'total':
+        print(sum(p.numel() for p in model.parameters()))
+    elif select == 'trainable':
+        print(sum(p.numel() for p in model.parameters() if p.requires_grad))
+
+  
 def Fit(train_set,val_set,model,loss,optimizer,batch_size,epochs):
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8)
@@ -229,10 +243,10 @@ def Evaluate(test_set,classifier):
     classifier.eval()
     for i, data in enumerate(test_loader):
             test_pred = classifier(data[0].cuda())
-            pred = np.argmax(test_pred.cpu().data.numpy(), axis=1)[0]
-            y_pred.append(pred)
-            acc+=np.sum(y_pred == data[1].numpy())
-    print(acc/test_set.__len__())
+            batch_pred = np.argmax(test_pred.cpu().data.numpy(), axis=1)
+            acc+=np.sum(batch_pred == data[1].numpy())
+            y_pred.append(batch_pred)
+    print("Test Accuracy: %.3f" %(acc/test_set.__len__()) )
     Plot_Confusion_Matrix(list(test_set[:][1].numpy()), y_pred)
     
 def Plot_History(history,save_model):
@@ -257,8 +271,9 @@ def Plot_History(history,save_model):
 
 def Plot_Confusion_Matrix(y_true, y_pred):
     from sklearn.metrics import confusion_matrix
+    import itertools
     conf_matrix = confusion_matrix(y_true, y_pred)
-    title='Confusion Matrix'
+    title='Normalized Confusion Matrix'
     cm = conf_matrix.astype('float')/conf_matrix.sum(axis=1)[:, np.newaxis]
     plt.imshow(cm, interpolation='nearest',cmap=plt.cm.Blues)
     plt.title(title)
@@ -266,9 +281,15 @@ def Plot_Confusion_Matrix(y_true, y_pred):
     tick_marks = np.arange(len(CLASSES))
     plt.xticks(tick_marks, CLASSES, rotation=45)
     plt.yticks(tick_marks, CLASSES)
+    
+    thresh = cm.max()/2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, '{:.2f}'.format(cm[i,j]), horizontalalignment="center", 
+                 color="white" if cm[i,j] > thresh else "black")    
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
+    return 
 
 #def Cross_validation(raw, n_fold):
 #    X_train, X_val, y_train, y_val = Split_train_val(raw.X, raw.y, train_rate=0.7)
@@ -278,14 +299,15 @@ def Plot_Confusion_Matrix(y_true, y_pred):
 
 
 def Sample():
-    print("Reading File...")
+    print("Reading Raw File...")
     raw = Data()
     raw.Read(RAWDATA_PATH)
-    raw.X, raw.y = Image_Augmentation(raw.X, raw.y) # return tensor
+    raw.X, raw.y = ImageDataGenerator(raw.X, raw.y) # return tensor
     raw.X,_,_ = Normalization(raw.X,'ZoomOut') 
     
+    ## Split to training, validation and testing set
     X_train, X_test, y_train, y_test = Split_train_val(raw.X, raw.y, train_rate=0.9)
-    X_train, X_val, y_train, y_val = Split_train_val(X_train, y_train, train_rate=0.7)
+    X_train, X_val, y_train, y_val = Split_train_val(X_train, y_train, train_rate=0.9)
     
     ## Make the training and testing dataset
     train_set, val_set = TensorDataset(X_train, y_train), TensorDataset(X_val, y_val)
@@ -295,7 +317,7 @@ def Sample():
     model = VGG16(in_dim=1, n_class=7).cuda()
     loss = nn.CrossEntropyLoss() # The criterion combines nn.LogSoftmax()
     loss = loss.cuda()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)    
     
     print("Fitting Model...")
     loss_history, acc_history = Fit(train_set,val_set,model,loss,optimizer,batch_size=256,epochs=32)
