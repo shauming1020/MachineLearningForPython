@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+#import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 ### Parameters ###
@@ -86,99 +86,6 @@ def ImageDataGenerator(imgs, label):
     imgs, label = torch.cat((imgs,aug)), torch.cat((label,aug_label))
     return imgs, label
     
-'''
-    Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=0,
-    dilation=1, groups=1, bias=True, padding_mode='zeros') 
-        in_channels(int) - Number of channels in the input image (1:binary , 3: RGB)
-        out_channels(int) - Number of channels produced by the convolution,
-                            i.e., the number of feature filter(neuron) will be conneted.
-        
-    BatchNorm2d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    
-    LeakyReLU(negative_slope=0.01, inplace=False)
-    
-    MaxPool2d(kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
-
-    Dropout(p=0.5, inplace=False)
-'''
-
-class VGG16(nn.Module):
-    def __init__(self, in_dim, n_class):
-        super(VGG16, self).__init__()
-        
-        self.cnn = nn.Sequential(
-            nn.Conv2d(in_dim, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64), # BatchNorm before activation
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),            
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),           
-            
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128), # BatchNorm before activation
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),            
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),            
-            
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256), # BatchNorm before activation
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),        
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-
-            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512), # BatchNorm before activation
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),       
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512), # BatchNorm before activation
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),       
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)             
-        )
-
-        self.fc = nn.Sequential(
-            nn.Linear(512*1*1, 4096), # need to check Linear input size
-            nn.ReLU(True),
-            nn.Dropout(), 
-            nn.Linear(4096, 4096),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(4096, 1000),
-            nn.ReLU(True),
-            nn.Dropout(), 
-            nn.Linear(1000, n_class)
-        )
-        
-    def forward(self, x):
-        out = self.cnn(x)
-        out = out.view(out.size()[0], -1) # Flatten
-        return self.fc(out)
-
-
-
-
-  
 def Parameters_Count(model,select):  
     if select == 'total':
         print(sum(p.numel() for p in model.parameters()))
@@ -314,16 +221,19 @@ def Sample():
     test_set = TensorDataset(X_test, y_test)
     
     print("Building Model...")
-    model = VGG16(in_dim=1, n_class=7).cuda()
+#    from VGG16 import VGG16 
+    from DNN import DNN
+    model = DNN(in_dim=48*48, n_class=7).cuda()
+#    model = VGG16(in_dim=1, n_class=7).cuda()
     loss = nn.CrossEntropyLoss() # The criterion combines nn.LogSoftmax()
     loss = loss.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)    
     
     print("Fitting Model...")
-    loss_history, acc_history = Fit(train_set,val_set,model,loss,optimizer,batch_size=256,epochs=32)
+    loss_history, acc_history = Fit(train_set,val_set,model,loss,optimizer,batch_size=256,epochs=256)
     
     Plot_History(loss_history,'VGG16_loss')
-    Plot_History(acc_history,'VGG16_acc')  
+    Plot_History(acc_history,'VGG16_acc')      
     
     ## It does't work, beacuse that would make the acc to random, fix it!
 #    print("Loading Model...")
