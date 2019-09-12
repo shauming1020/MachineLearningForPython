@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-#import torch.nn.functional as F
+import torchvision.transforms as transforms
 from torch.utils.data import TensorDataset, DataLoader
 
 ### Parameters ###
@@ -21,10 +21,9 @@ PIC_PATH = './picture'
 CLASSES = ("Angry","Disgust","Fear","Happy","Sad","Surprise","Neutral")
 ##################
 
-def Imshow(img):
-    import matplotlib.pyplot as plt
-    npimg = img.numpy()[0] # Show one picture
-    plt.imshow(npimg)
+### Golbal Parameters ###
+LEARNING_RATE = 0.001
+#########################
 
 class Data():
     def __init__(self):
@@ -46,25 +45,6 @@ def Split_train_val(x,y,train_rate=0.7):
     x, y = x[perm], y[perm]
     split_pos = int(np.round(len(y)*train_rate))
     return x[:split_pos], x[split_pos:], y[:split_pos], y[split_pos:]
-    
-def Normalization(x,method='ZoomOut',mean_or_max='None',std_or_min='None',trans=False):
-    if trans == False:
-        if method == 'Rescaling':
-            mean_or_max = torch.max(x, dim = 0) # (Number of Images, RGB, height, width)
-            std_or_min = torch.min(x, dim = 0)  
-        elif method == 'Standardization':
-            mean_or_max = torch.mean(x, dim = 0)
-            std_or_min = torch.std(x, dim = 0)          
-    if method == 'Rescaling':
-        x = (x - std_or_min) / (mean_or_max - std_or_min)
-    elif method == 'Standardization':
-        x = (x-mean_or_max) / std_or_min
-    elif method == 'ZoomOut':
-        x /= 255.0
-    if trans:
-        return x
-    else:
-        return x, mean_or_max, std_or_min
 
 def Encoding(y,n_class,method='One-Hot'):
     size = len(y)
@@ -73,26 +53,11 @@ def Encoding(y,n_class,method='One-Hot'):
         encoding.zero_()
         encoding.scatter_(1,y.view(-1,1),1)
     return encoding
-
-def ImageDataGenerator(imgs, label):
-    def flip(x, dim):
-        indices = [slice(None)] * x.dim()
-        indices[dim] = torch.arange(x.size(dim) - 1, -1, -1,
-                                    dtype=torch.long, device=x.device)
-        return x[tuple(indices)]
-    aug, aug_label = imgs.clone(), label.clone()
-    for i in range(len(aug)):
-        aug[i] = flip(aug[i],2) # horizontal_flip
-    imgs, label = torch.cat((imgs,aug)), torch.cat((label,aug_label))
-    return imgs, label
-    
-def Parameters_Count(model,select):  
-    if select == 'total':
-        print(sum(p.numel() for p in model.parameters()))
-    elif select == 'trainable':
-        print(sum(p.numel() for p in model.parameters() if p.requires_grad))
-
-  
+ 
+def Parameters_Count(model):  
+    print('Total parameters:',sum(p.numel() for p in model.parameters()))
+    print('Trainable parameters:comp',sum(p.numel() for p in model.parameters() if p.requires_grad))
+ 
 def Fit(train_set,val_set,model,loss,optimizer,batch_size,epochs):
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8)
@@ -103,6 +68,9 @@ def Fit(train_set,val_set,model,loss,optimizer,batch_size,epochs):
     
     for epoch in range(epochs):
         epoch_start_time = time.time()
+        
+        adjust_learning_rate(optimizer, epoch)
+        
         train_acc = 0.0
         train_loss = 0.0
         val_acc = 0.0
@@ -110,27 +78,37 @@ def Fit(train_set,val_set,model,loss,optimizer,batch_size,epochs):
     
         model.train() # Switch to train mode
         for i, data in enumerate(train_loader):
-            optimizer.zero_grad()
-    
+            # compute output
             train_pred = model(data[0].cuda())
             batch_loss = loss(train_pred, data[1].cuda())
+            
+            #compute gradient and do step
+            optimizer.zero_grad()
             batch_loss.backward()
             optimizer.step()
-    
+            
+            train_pred = train_pred.float()
+            loss = loss.float()
+            
             train_acc += np.sum(np.argmax(train_pred.cpu().data.numpy(), axis=1) == data[1].numpy())
             train_loss += batch_loss.item()
      
         model.eval() # Switch to evaluate mode
         for i, data in enumerate(val_loader):
-            val_pred = model(data[0].cuda())
-            batch_loss = loss(val_pred, data[1].cuda())
+            # compute output
+            with torch.no_grad():
+                val_pred = model(data[0].cuda())
+                batch_loss = loss(val_pred, data[1].cuda())
+    
+            val_pred = val_pred.float()
+            batch_loss = batch_loss.float()
     
             val_acc += np.sum(np.argmax(val_pred.cpu().data.numpy(), axis=1) == data[1].numpy())
             val_loss += batch_loss.item()
-        
+            
         val_acc = val_acc/val_set.__len__()
         train_acc = train_acc/train_set.__len__()
-        print('[%03d/%03d] %2.2f sec(s) Train Acc: %3.6f Loss: %3.6f | Val Acc: %3.6f loss: %3.6f' % \
+        print('[%03d/%03d] %2.2f sec(s) Train Acc: %3.3f Loss: %3.3f | Val Acc: %3.3f loss: %3.3f' % \
                 (epoch + 1, epochs, time.time()-epoch_start_time, \
                  train_acc, train_loss, val_acc, val_loss))
         
@@ -143,7 +121,7 @@ def Fit(train_set,val_set,model,loss,optimizer,batch_size,epochs):
             print ('Model Saved!')  
     return np.asarray(loss_history), np.asarray(acc_history)
 
-def Evaluate(test_set,classifier):
+def Evaluate(test_set,classifier,save_model):
     test_loader = DataLoader(test_set, num_workers=8)
     acc = 0.0
     y_pred = []
@@ -155,6 +133,12 @@ def Evaluate(test_set,classifier):
             y_pred.append(batch_pred)
     print("Test Accuracy: %.3f" %(acc/test_set.__len__()) )
     Plot_Confusion_Matrix(list(test_set[:][1].numpy()), y_pred)
+    if save_model == False:     
+        plt.savefig(PIC_PATH+'/_confusion.png')
+    else:
+        plt.savefig(PIC_PATH+'/'+save_model+'_confusion.png')
+    plt.show()
+    plt.close()
     
 def Plot_History(history,save_model):
     plt.clf()
@@ -198,39 +182,61 @@ def Plot_Confusion_Matrix(y_true, y_pred):
     plt.xlabel('Predicted label')
     return 
 
+def adjust_learning_rate(optimizer, epoch):
+    """Sets the learning rate to the initial LR decayed by 2 every 30 epochs """
+    lr = LEARNING_RATE * (0.5 ** (epoch // 30))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 #def Cross_validation(raw, n_fold):
 #    X_train, X_val, y_train, y_val = Split_train_val(raw.X, raw.y, train_rate=0.7)
 #    train_set = TensorDataset(raw.X, raw.y)
     
 #def Ensemble_Learning():
 
-
-def Sample():
+def VGG():
     print("Reading Raw File...")
     raw = Data()
     raw.Read(RAWDATA_PATH)
-    raw.X, raw.y = ImageDataGenerator(raw.X, raw.y) # return tensor
-    raw.X,_,_ = Normalization(raw.X,'ZoomOut') 
     
-    ## Split to training, validation and testing set
-    X_train, X_test, y_train, y_test = Split_train_val(raw.X, raw.y, train_rate=0.9)
-    X_train, X_val, y_train, y_val = Split_train_val(X_train, y_train, train_rate=0.9)
-    
-    ## Make the training and testing dataset
-    train_set, val_set = TensorDataset(X_train, y_train), TensorDataset(X_val, y_val)
+    X_train, X_test, y_train, y_test = Split_train_val(raw.X, raw.y, train_rate=0.7)
+    X_test /= 255.
     test_set = TensorDataset(X_test, y_test)
     
+    print("Image Augmentation...")
+#    import DataAugmenters
+#    aug = DataAugmenters.ImageGenerator(X_train, y_train)
+#    aug._horizontal_flip()
+#    aug._vertical_flip()
+#    aug._rotate_flip()
+#    aug._make_augment_images()
+#    aug._rand_earsing()
+#    aug._rand_earsing()
+#    aug._make_augment_images()
+#    aug._normalize()   
+#    X_train, y_train = aug.imgs, aug.label
+    
+    transform = transforms.Compose([transforms.ToPILImage(),
+                                    transforms.Pad(2), 
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.RandomCrop(16),
+                                    transforms.ToTensor()])
+    
+    X_train = transform(X_train)
+    ## Split to training, validation  
+    X_train, X_val, y_train, y_val = Split_train_val(X_train, y_train, train_rate=0.7)
+    train_set, val_set = TensorDataset(X_train, y_train), TensorDataset(X_val, y_val)
+    
     print("Building Model...")
-#    from VGG16 import VGG16 
-    from DNN import DNN
-    model = DNN(in_dim=48*48, n_class=7).cuda()
-#    model = VGG16(in_dim=1, n_class=7).cuda()
+    import vgg
+    model = vgg.vgg16(1,7,True).cuda()
     loss = nn.CrossEntropyLoss() # The criterion combines nn.LogSoftmax()
     loss = loss.cuda()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)    
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)    
     
     print("Fitting Model...")
-    loss_history, acc_history = Fit(train_set,val_set,model,loss,optimizer,batch_size=256,epochs=256)
+    Parameters_Count(model)
+    loss_history, acc_history = Fit(train_set,val_set,model,loss,optimizer,batch_size=256,epochs=32)
     
     Plot_History(loss_history,'VGG16_loss')
     Plot_History(acc_history,'VGG16_acc')      
@@ -241,12 +247,14 @@ def Sample():
 #    model.load_state_dict(torch.load(MODE_PATH+'/model.pth'))
     
     print("Evaluate and Plot Confusion Matrix...")
-    Evaluate(test_set,model)
+    Evaluate(test_set,model,'VGG16')
     
     print("Reading Observe File...")
     ob = Data()
     ob.Read(OBSERVE_PATH)
-    ob.X,_,_ = Normalization(ob.X,'ZoomOut')
+    aug_ob = DataAugmenters.ImageGenerator(ob.X, None)
+    aug_ob._normalize()
+    ob.X = aug_ob.imgs
     
     ob_set = TensorDataset(ob.X, ob.y) ## test.y is ID not label.
     ob_loader = DataLoader(ob_set, num_workers=8)
@@ -261,7 +269,7 @@ def Sample():
         writer = csv.writer(submissionFile)
         writer.writerows(submission)
     
-    print('Writing Complete!')
-
+    print('Writing Complete!')    
+    
 if __name__ == '__main__':    
-    Sample()
+    VGG()
