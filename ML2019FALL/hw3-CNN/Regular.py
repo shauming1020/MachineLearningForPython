@@ -61,8 +61,8 @@ class Regularization(torch.nn.Module):
         reg_loss=0
         for name, w in weight_list:
             l2_reg = torch.norm(w, p=p)
-#            reg_loss = reg_loss + torch.abs(l2_reg) # Abs of 2norm
-            reg_loss = reg_loss + l2_reg
+            reg_loss = reg_loss + torch.abs(l2_reg) # non-negative 
+#            reg_loss = reg_loss + l2_reg
             
         reg_loss=weight_decay*reg_loss
         return reg_loss
