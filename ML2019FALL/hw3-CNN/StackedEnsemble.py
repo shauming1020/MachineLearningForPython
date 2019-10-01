@@ -303,7 +303,7 @@ def Ensemble_():
     members = load_all_models(ENSEMBLE_NUM)
     for model in members:
         pred = []
-        for i, data in enumerate(ob_loader):
+        for data in ob_loader:
             ob_pred = model(data[0].cuda())
             pred += [np.argmax(ob_pred.cpu().data.numpy(), axis=1)]
         stack_pred.append(np.hstack(pred))
