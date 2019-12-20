@@ -8,10 +8,13 @@ import os
 import sys
 import logging
 import argparse
+import random
 
 import numpy as np
 import torch
 import torch.nn as nn
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
 from torch import optim
 from tqdm import tqdm
 
@@ -21,8 +24,8 @@ from unet import UNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs/'
-dir_mask = 'data/masks/'
+dir_img = 'data/generate_imgs2/'
+dir_mask = 'data/generate_masks/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -32,7 +35,8 @@ def train_net(net,
               lr=0.1,
               val_percent=0.1,
               save_cp=True,
-              img_scale=0.5):
+              img_scale=0.5, 
+              data_augment=True):
     
     dataset = BasicDataset(dir_img, dir_mask, img_scale)      
     n_val = int(len(dataset) * val_percent)
@@ -75,10 +79,18 @@ def train_net(net,
                     f'Network has been defined with {net.n_classes} output classes, ' \
                     f'but loaded masks have {true_masks.shape[1]} channels. Please check that ' \
                     'the masks are loaded correctly.'
-
+                
+                if data_augment:
+                    for i in range(batch_size):
+                        imgs[i], true_masks[i] =\
+                            my_segmentation_transforms(imgs[i], true_masks[i])
+                
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.float32)
-
+                
+                import matplotlib.pyplot as plt
+                plt.imshow(true_masks[0][0].cpu())
+                
                 masks_pred = net(imgs)
                 loss = criterion(masks_pred, true_masks)
                 epoch_loss += loss.item()
@@ -113,10 +125,31 @@ def train_net(net,
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
+        
+def my_segmentation_transforms(image, segmentation):
+    
+    image = image.numpy().transpose((1, 2, 0)) * 255
+    segmentation = segmentation.numpy().transpose((1, 2, 0)) * 255
+    
+    image, segmentation = TF.to_pil_image(image.astype(np.float32)),\
+                        TF.to_pil_image(segmentation.astype(np.float32))
+    
+    if random.random() > 0.5:
+        image = TF.affine(image, 15, (2, 2), 1, 0.2)
+        segmentation = TF.affine(segmentation, 15, (2, 2), 1, 0.2)       
+        
+    if random.random() > 0.5:
+        image = TF.hflip(image)
+        segmentation = TF.hflip(segmentation)
+    
+    image, segmentation = TF.to_tensor(image), TF.to_tensor(segmentation)
+    
+    return image, segmentation
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=32,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=128,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
                         help='Batch size', dest='batchsize')
@@ -153,7 +186,9 @@ try:
               lr=args.lr,
               device=device,
               img_scale=args.scale,
-              val_percent=args.val / 100)
+              val_percent=args.val / 100,
+              data_augment=True)
+    
 except KeyboardInterrupt:
     torch.save(net.state_dict(), 'INTERRUPTED.pth')
     try:

@@ -40,8 +40,8 @@ class BasicDataset(Dataset):
             img_trans = img_trans / 255
         
         # For my DIP_hw 
-        if img_trans.shape[0] > 3:
-            img_trans = img_trans[0:3,:,:]
+        if img_trans.shape[0] >= 3:
+            img_trans = img_trans[0:1,:,:]
         
         return img_trans
 

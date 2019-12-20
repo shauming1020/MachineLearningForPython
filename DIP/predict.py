@@ -25,7 +25,7 @@ def predict_img(net,
                 out_threshold=0.5):
     net.eval().cuda()
 
-    ds = BasicDataset('./data/imgs/', './data/masks', scale=scale_factor)
+    ds = BasicDataset('./data/generate_imgs/', './data/masks', scale=scale_factor)
     img = torch.from_numpy(ds.preprocess(full_img))
 
     img = img.unsqueeze(0)
@@ -141,10 +141,10 @@ if __name__ == "__main__":
 
 
 
-    in_files = "./data/imgs2/22.png" # test
+    in_files = "./data/generate_imgs/0005.png" # test
     
-    net = UNet(n_channels=3, n_classes=1)
-    Loaded_model = "./checkpoints/CP_epoch128.pth"
+    net = UNet(n_channels=1, n_classes=1)
+    Loaded_model = "./BEST.pth"
     
     logging.info("Loading model {}".format(Loaded_model))
     
