@@ -25,8 +25,8 @@ from unet import UNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/generate_imgs2/'
-dir_mask = 'data/generate_masks/'
+dir_img = 'data/generate_imgs/'
+dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -82,7 +82,7 @@ def train_net(net,
                     'the masks are loaded correctly.'
                 
                 if data_augment:
-                    for i in range(batch.__len__()):
+                    for i in range(imgs.__len__()):
                         imgs[i], true_masks[i] = my_segmentation_transforms(imgs[i], true_masks[i])
                 
                 imgs = imgs.to(device=device, dtype=torch.float32)
@@ -146,7 +146,7 @@ def my_segmentation_transforms(image, segmentation):
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=128,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=256,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')
@@ -167,6 +167,7 @@ if __name__ == '__main__':
     net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
     
     # for pre-train
+    args.load = ""
     if args.load:
         net.load_state_dict(
             torch.load(args.load, map_location=device)
