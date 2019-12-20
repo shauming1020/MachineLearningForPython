@@ -139,16 +139,16 @@ def my_segmentation_transforms(image, segmentation):
         image = TF.hflip(image)
         segmentation = TF.hflip(segmentation)
     
-    image, segmentation = TF.to_tensor(image), TF.to_tensor(segmentation)
+    image, segmentation = TF.to_tensor(image) / 255, TF.to_tensor(segmentation) / 255
     
     return image, segmentation
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=256,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=128,
                         help='Number of epochs', dest='epochs')
-    parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
+    parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')
     parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.01,
                         help='Learning rate', dest='lr')
