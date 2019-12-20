@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
+import matplotlib.pyplot as plt
 from torch import optim
 from tqdm import tqdm
 
@@ -81,15 +82,11 @@ def train_net(net,
                     'the masks are loaded correctly.'
                 
                 if data_augment:
-                    for i in range(batch_size):
-                        imgs[i], true_masks[i] =\
-                            my_segmentation_transforms(imgs[i], true_masks[i])
+                    for i in range(batch.__len__()):
+                        imgs[i], true_masks[i] = my_segmentation_transforms(imgs[i], true_masks[i])
                 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.float32)
-                
-                import matplotlib.pyplot as plt
-                plt.imshow(true_masks[0][0].cpu())
                 
                 masks_pred = net(imgs)
                 loss = criterion(masks_pred, true_masks)
@@ -149,7 +146,7 @@ def my_segmentation_transforms(image, segmentation):
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=128,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=256,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
                         help='Batch size', dest='batchsize')
@@ -157,7 +154,7 @@ def get_args():
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
-    parser.add_argument('-s', '--scale', dest='scale', type=float, default=0.7,
+    parser.add_argument('-s', '--scale', dest='scale', type=float, default=0.5,
                         help='Downscaling factor of the images')
     parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
