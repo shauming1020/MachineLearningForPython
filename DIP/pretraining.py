@@ -25,8 +25,8 @@ from unet import UNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs/'
-dir_mask = 'data/masks/'
+dir_img = 'data/imgs_pretrain/'
+dir_mask = 'data/masks_pretrain/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -152,10 +152,15 @@ def my_segmentation_transforms(image, segmentation):
     
     return image, segmentation
 
+def adjust_learning_rate(LEARNING_RATE, optimizer, epoch):
+    lr = LEARNING_RATE * (0.8 ** (epoch // 128))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=256,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=1024,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')

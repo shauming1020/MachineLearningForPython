@@ -66,8 +66,6 @@ def cross_validation():
         val_loader = DataLoader(val_dataset[i], batch_size=4, shuffle=False, num_workers=0, pin_memory=True)
         current_score = eval_net(net, val_loader, device, n_val = 20)
         val_score.append(current_score)
-        
-    torch.save(net.state_dict(), './model/fold_LAST.pth')
     
     print("")
     print(val_score)

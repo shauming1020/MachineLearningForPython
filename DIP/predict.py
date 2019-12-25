@@ -72,8 +72,9 @@ def get_output_filenames(args):
 def mask_to_image(mask):
     return Image.fromarray((mask * 255).astype(np.uint8))
 
+
 if __name__ == "__main__":
-    in_files = "./data/imgs_test/0043.png"
+    in_files = "./data/imgs_test/0058.png"
 
     net = UNet(n_channels=1, n_classes=1)
     Loaded_model = "./model/BEST.pth"
@@ -101,5 +102,6 @@ if __name__ == "__main__":
     
     # write
     mask_bgr = mask_to_image(mask)    
+    mask_bgr = mask_bgr.resize((500, 1200))
     mask_bgr.save('./predict/predict.png')
     

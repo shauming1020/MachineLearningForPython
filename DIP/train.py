@@ -13,9 +13,7 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
-import matplotlib.pyplot as plt
 from torch import optim
 from tqdm import tqdm
 
@@ -26,7 +24,7 @@ from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
 dir_img = 'data/imgs_train/'
-dir_mask = 'data/masks_train/'
+dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -65,6 +63,8 @@ def train_net(net,
     
     for epoch in range(epochs):
         net.train()
+        
+        # adjust_learning_rate(lr, optimizer, epoch)
         
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
@@ -123,7 +123,6 @@ def train_net(net,
             torch.save(net.state_dict(),
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
-
         
 def my_segmentation_transforms(image, segmentation):
     
@@ -153,6 +152,11 @@ def my_segmentation_transforms(image, segmentation):
     image, segmentation = TF.to_tensor(image), TF.to_tensor(segmentation)
     
     return image, segmentation
+
+def adjust_learning_rate(LEARNING_RATE, optimizer, epoch):
+    lr = LEARNING_RATE * (0.8 ** (epoch // 128))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',

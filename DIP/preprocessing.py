@@ -16,19 +16,20 @@ def clahe_hist(img):
     cl1 = clahe.apply(img)
     return cl1
 
-for i in range(60) :
-    if i < 9 :
-        ze = '000'
-    elif 9 <= i and i < 99 :
-        ze = '00'
+if __name__ == "__main__":
+    for i in range(60) :
+        if i < 9 :
+            ze = '000'
+        elif 9 <= i and i < 99 :
+            ze = '00'
+        
+        img = cv2.imread('data/imgs/' + ze + str(i+1) + '.png', 0)
+        mask = cv2.imread('data/masks/' + ze + str(i+1) + '.png', 0)
     
-    img = cv2.imread('data/imgs/' + ze + str(i+1) + '.png', 0)
-    mask = cv2.imread('data/masks/' + ze + str(i+1) + '.png', 0)
-
-    img = clahe_hist(img)
-    
-    cv2.imwrite('data/t/'+ ze + str(i+1) + '.png', img)
-    
-    imgs.append(img)
-    masks.append(mask)
+        img = clahe_hist(img)
+        
+        cv2.imwrite('data/t/'+ ze + str(i+1) + '.png', img)
+        
+        imgs.append(img)
+        masks.append(mask)
     
