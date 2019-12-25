@@ -55,7 +55,7 @@ class AppWindow(QDialog):
         ## Pre Processing
         self.preimg = Image.fromarray(clahe_hist(self.img) )
 
-        ## Create a UNET
+        ## Create an UNET
         net = UNet(n_channels=1, n_classes=1)  
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         net.to(device=device)
@@ -84,8 +84,9 @@ class AppWindow(QDialog):
             self.ui.dcText.setText("Number of vertebrae match with " +\
                                    str(len(contours_g)) + " ... !\n")
             vertebrae_num = len(contours_g)
+            return
         else:
-            self.ui.dcText.setText("Number of vertebrae cannot match ... !")
+            self.ui.dcText.setText("Number of vertebrae cannot be matched ... !")
        
         ## Computing dc score 
         dc_score = 0
