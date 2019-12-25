@@ -74,10 +74,10 @@ def mask_to_image(mask):
 
 
 if __name__ == "__main__":
-    in_files = "./data/imgs_test/0058.png"
+    in_files = "./data/f01/imgs_val/0042.png"
 
     net = UNet(n_channels=1, n_classes=1)
-    Loaded_model = "./model/BEST.pth"
+    Loaded_model = "./model/PRE_BEST.pth"
     
     logging.info("Loading model {}".format(Loaded_model))
     

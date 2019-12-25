@@ -23,7 +23,8 @@ class AppWindow(QDialog):
         self.ui = Ui_Form()
         self.ui.setupUi(self)
         self.ui.imgBt.clicked.connect(self.selectImage)
-        self.ui.gtBt.clicked.connect(self.selectModel)
+        self.ui.gtBt.clicked.connect(self.selectGT)
+        self.ui.mdBt.clicked.connect(self.selectModel)
         self.ui.runBt.clicked.connect(self.run)
         
         self.show()
@@ -34,23 +35,34 @@ class AppWindow(QDialog):
         self.dir_predict = "./predict/predict.png"
         self.loaded_model = "./model/BEST.pth"
         self.img = cv2.imread(self.dir_img, 0)
+        self.bedraw = cv2.imread(self.dir_img, 0)
         self.mask = cv2.imread(self.dir_mask, 0)   
         
     def selectImage(self):
         
         self.dir_img = './predict/' + self.ui.imgName.text()
-        self.img = cv2.imread(self.dir_img, 0)       
-        
+        self.img = cv2.imread(self.dir_img, 0)  
+        self.bedraw = cv2.imread(self.dir_img, 0)
+        cv2.imshow('Raw Image', self.img)
         return 
 
-    def selectModel(self):
+    def selectGT(self):
 
         self.dir_mask = './predict/' + self.ui.maskName.text()
         self.mask = cv2.imread(self.dir_mask, 0)   
+        cv2.imshow('Ground Truth', self.mask)
         
         return
 
+    def selectModel(self):
+        
+        self.loaded_model = './model/' + self.ui.modelName.text()
+         
+        return
+
     def run(self):
+        self.ui.dcText.clear()
+        
         
         ## Pre Processing
         self.preimg = Image.fromarray(clahe_hist(self.img) )
@@ -84,10 +96,10 @@ class AppWindow(QDialog):
             self.ui.dcText.setText("Number of vertebrae match with " +\
                                    str(len(contours_g)) + " ... !\n")
             vertebrae_num = len(contours_g)
-            return
         else:
             self.ui.dcText.setText("Number of vertebrae cannot be matched ... !")
-       
+            return
+        
         ## Computing dc score 
         dc_score = 0
         dc_component = "DC : \n"
@@ -120,17 +132,18 @@ class AppWindow(QDialog):
             total = 2 * (cross) / (area_g + area_p)
             
             dc_score += total
-            dc_component += "V" + str(n) + " : " + str(total) + "\n"
+            dc_component += "V" + str(n) + " : " + str(round(total, 3)) + "\n"
         
         dc_avg = dc_score / vertebrae_num
-        dc_component += "Average : " + str(dc_avg)
+        dc_component += "Average : " + str(round(dc_avg, 3))
         self.ui.dcText.setText(dc_component)
         
         ## Draw the predict contours on raw image
-        self.img = cv2.cvtColor(self.img, cv2.COLOR_GRAY2BGR)
-        cv2.drawContours(self.img, contours_p, -1, (0, 0, 255), 1)        
-        cv2.namedWindow('Result')
-        cv2.imshow('Result', self.img)
+        self.bedraw = cv2.cvtColor(self.img, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(self.bedraw, contours_p, -1, (0, 0, 255), 1)
+
+        ## Show    
+        cv2.imshow('Result', self.bedraw)
         
         return
     

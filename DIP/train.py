@@ -64,7 +64,7 @@ def train_net(net,
     for epoch in range(epochs):
         net.train()
         
-        # adjust_learning_rate(lr, optimizer, epoch)
+        adjust_learning_rate(lr, optimizer, epoch)
         
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:

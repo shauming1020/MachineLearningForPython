@@ -48,7 +48,7 @@ def cross_validation():
             train_net(net,
                       train_dataset[i],
                       device,
-                      epochs=2,
+                      epochs=512,
                       batch_size=4,
                       lr=0.01,
                       val_percent=0,
