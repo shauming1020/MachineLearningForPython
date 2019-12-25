@@ -25,21 +25,21 @@ from unet import UNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs_train/'
-dir_mask = 'data/masks_train/'
+dir_img = 'data/imgs/'
+dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
-              dataset,
               device,
-              epochs=512,
-              batch_size=4,
-              lr=0.01,
-              val_percent=0.0,
+              epochs=5,
+              batch_size=1,
+              lr=0.1,
+              val_percent=0.1,
               save_cp=False,
-              img_scale=0.2, 
+              img_scale=0.5, 
               data_augment=True):
-       
+    
+    dataset = BasicDataset(dir_img, dir_mask, img_scale)      
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
@@ -61,7 +61,7 @@ def train_net(net,
     
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     criterion = nn.BCEWithLogitsLoss() # 1 class
-    best_score, val_score = 0., 0.1
+    best_score = 0.
     
     for epoch in range(epochs):
         net.train()
@@ -100,18 +100,16 @@ def train_net(net,
 
                 pbar.update(imgs.shape[0])
                 global_step += 1
-                
+
                 if global_step % (len(dataset) // (10 * batch_size)) == 0:
-                    if n_val != 0:                   
-                        val_score = eval_net(net, val_loader, device, n_val)
-                        logging.info('Validation Dice Coeff: {}'.format(val_score))
-                        print(" ")
-                        print('Validation Dice Coeff: {}'.format(val_score))
+                    val_score = eval_net(net, val_loader, device, n_val)
+                    logging.info('Validation Dice Coeff: {}'.format(val_score))
+                    print(" ")
+                    print('Validation Dice Coeff: {}'.format(val_score))
         
-        if best_score <= val_score:
-            torch.save(net.state_dict(), './model/BEST.pth')
+        if best_score < val_score:
+            torch.save(net.state_dict(), './model/PRE_BEST.pth')
             logging.info(f'Best saved !')
-            print('Best saved !')
             best_score = val_score
                               
         if save_cp:
@@ -157,24 +155,23 @@ def my_segmentation_transforms(image, segmentation):
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=512,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=256,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')
     parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.01,
                         help='Learning rate', dest='lr')
-    parser.add_argument('-f', '--load', dest='load', type=str, default="./model/PRE_BEST.pth",
+    parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
     parser.add_argument('-s', '--scale', dest='scale', type=float, default=0.2,
                         help='Downscaling factor of the images')
-    parser.add_argument('-v', '--validation', dest='val', type=float, default=0.0,
+    parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
 
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = get_args()
-    dataset = BasicDataset(dir_img, dir_mask, args.scale)   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
     
@@ -190,7 +187,6 @@ if __name__ == '__main__':
     
     try:
         train_net(net=net,
-                  dataset=dataset,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
                   lr=args.lr,
