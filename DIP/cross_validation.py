@@ -29,21 +29,21 @@ def make_dataset(img_scale = 0.2):
 
 def cross_validation():
     train_dataset, val_dataset = make_dataset()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
-    
-    # get pretrain model
-    net.load_state_dict(
-            torch.load("./model/PRE_BEST.pth", map_location=device)
-            )
-    
-    net.to(device=device)
-    
-    # faster convolutions, but more memory
-    torch.backends.cudnn.benchmark = True
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')   
     
     val_score = []        
     for i in range(3):
+        net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
+    
+        # get pretrain model
+        net.load_state_dict(
+                torch.load("./model/PRE_BEST.pth", map_location=device)
+                )
+        net.to(device=device)
+        
+        # faster convolutions, but more memory
+        torch.backends.cudnn.benchmark = True        
+          
         try:
             train_net(net,
                       train_dataset[i],
