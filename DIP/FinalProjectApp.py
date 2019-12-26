@@ -35,14 +35,12 @@ class AppWindow(QDialog):
         self.dir_predict = "./predict/predict.png"
         self.loaded_model = "./model/BEST.pth"
         self.img = cv2.imread(self.dir_img, 0)
-        self.bedraw = cv2.imread(self.dir_img, 0)
         self.mask = cv2.imread(self.dir_mask, 0)   
         
     def selectImage(self):
         
         self.dir_img = './predict/' + self.ui.imgName.text()
         self.img = cv2.imread(self.dir_img, 0)  
-        self.bedraw = cv2.imread(self.dir_img, 0)
         cv2.imshow('Raw Image', self.img)
         return 
 
