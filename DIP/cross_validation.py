@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from eval import eval_net
-from unet import UNet
+from resunet import ResidualUNet
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader
 from train import train_net
@@ -33,12 +33,7 @@ def cross_validation():
     
     val_score = []        
     for i in range(3):
-        net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
-    
-        # get pretrain model
-        net.load_state_dict(
-                torch.load("./model/PRE_BEST.pth", map_location=device)
-                )
+        net = ResidualUNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
         net.to(device=device)
         
         # faster convolutions, but more memory
@@ -48,13 +43,13 @@ def cross_validation():
             train_net(net,
                       train_dataset[i],
                       device,
-                      epochs=512,
+                      epochs=256,
                       batch_size=4,
-                      lr=0.01,
+                      lr=0.001,
                       val_percent=0,
                       save_cp=False,
                       img_scale=0.2, 
-                      data_augment=True)
+                      data_augment=False)
             
         except KeyboardInterrupt:
             torch.save(net.state_dict(), './model/INTERRUPTED.pth')
@@ -72,5 +67,12 @@ def cross_validation():
     return np.sum(val_score) / 3
 
 if __name__ == '__main__':
-    print('Averge score = ' + str(cross_validation()))
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # net = ResidualUNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
+    # net.to(device=device)
+    # from torchsummary import summary
+    # summary(net, input_size=(1, int(0.2 * 500), int(0.2 * 1200))) 
+    
+    
+    print('Average score = ' + str(cross_validation()))
     
