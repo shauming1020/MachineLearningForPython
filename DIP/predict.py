@@ -13,7 +13,7 @@ from PIL import Image
 from torchvision import transforms
 import torch.nn.functional as F
 
-from unet import UNet
+from resunet import ResidualUNet
 from utils.data_vis import plot_img_and_mask
 from utils.dataset import BasicDataset
 
@@ -74,10 +74,10 @@ def mask_to_image(mask):
 
 
 if __name__ == "__main__":
-    in_files = "./data/f01/imgs_val/0042.png"
+    in_files = "data/f01/imgs_val/0058.png"
 
-    net = UNet(n_channels=1, n_classes=1)
-    Loaded_model = "./model/PRE_BEST.pth"
+    net = ResidualUNet(n_channels=1, n_classes=1)
+    Loaded_model = "./model/BEST.pth"
     
     logging.info("Loading model {}".format(Loaded_model))
     

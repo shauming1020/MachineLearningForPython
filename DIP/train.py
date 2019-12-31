@@ -18,13 +18,13 @@ from torch import optim
 from tqdm import tqdm
 
 from eval import eval_net
-from unet import UNet
+from resunet import ResidualUNet
 
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs_train/'
-dir_mask = 'data/masks/'
+dir_img = 'data/f01/imgs/'
+dir_mask = 'data/f01/masks/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -89,7 +89,7 @@ def train_net(net,
                 true_masks = true_masks.to(device=device, dtype=torch.float32)
                 
                 masks_pred = net(imgs)
-                loss = criterion(masks_pred, true_masks)
+                loss = my_loss_function(masks_pred, true_masks, criterion)
                 epoch_loss += loss.item()
 
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
@@ -123,6 +123,22 @@ def train_net(net,
             torch.save(net.state_dict(),
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
+
+def dice_loss(input, target) :
+    eps = 1
+    inter = torch.dot(input.view(-1), target.view(-1))
+    union = torch.sum(input) + torch.sum(target) + eps
+
+    return 1 - ((2 * inter.float() + eps) / union.float() )
+    
+
+def my_loss_function(masks_pred, true_masks, criterion):
+    dc_weight = 0.001
+    
+    bce = criterion(masks_pred, true_masks)
+    dc = dice_loss(masks_pred, true_masks.squeeze(dim=1))  # minimize this term
+    
+    return bce + dc_weight * torch.mean(dc)
         
 def my_segmentation_transforms(image, segmentation):
     
@@ -165,13 +181,13 @@ def get_args():
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.01,
+    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.001,
                         help='Learning rate', dest='lr')
-    parser.add_argument('-f', '--load', dest='load', type=str, default="./model/PRE_BEST.pth",
+    parser.add_argument('-f', '--load', dest='load', type=str, default='model/PRE_BEST.pth',
                         help='Load model from a .pth file')
     parser.add_argument('-s', '--scale', dest='scale', type=float, default=0.2,
                         help='Downscaling factor of the images')
-    parser.add_argument('-v', '--validation', dest='val', type=float, default=0.0,
+    parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
 
     return parser.parse_args()
@@ -180,7 +196,7 @@ if __name__ == '__main__':
     args = get_args()
     dataset = BasicDataset(dir_img, dir_mask, args.scale)   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
+    net = ResidualUNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
     
     # for pre-train
     if args.load:

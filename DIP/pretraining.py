@@ -20,13 +20,14 @@ from torch import optim
 from tqdm import tqdm
 
 from eval import eval_net
-from unet import UNet
+from resunet import ResidualUNet
 
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs_pretrain/'
-dir_mask = 'data/masks_pretrain/'
+
+dir_img = 'data/total/imgs_pretrain/'
+dir_mask = 'data/total/masks_pretrain/'
 dir_checkpoint = 'checkpoints/'
 
 def train_net(net,
@@ -61,7 +62,7 @@ def train_net(net,
     
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     criterion = nn.BCEWithLogitsLoss() # 1 class
-    best_score = 0.
+    best_score, val_score = 0., 0.1
     
     for epoch in range(epochs):
         net.train()
@@ -73,15 +74,15 @@ def train_net(net,
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
-                assert imgs.shape[1] == net.n_channels, \
-                    f'Network has been defined with {net.n_channels} input channels, ' \
-                    f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
-                    'the images are loaded correctly.'
+                # assert imgs.shape[1] == net.n_channels, \
+                #     f'Network has been defined with {net.n_channels} input channels, ' \
+                #     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
+                #     'the images are loaded correctly.'
 
-                assert true_masks.shape[1] == net.n_classes, \
-                    f'Network has been defined with {net.n_classes} output classes, ' \
-                    f'but loaded masks have {true_masks.shape[1]} channels. Please check that ' \
-                    'the masks are loaded correctly.'
+                # assert true_masks.shape[1] == net.n_classes, \
+                #     f'Network has been defined with {net.n_classes} output classes, ' \
+                #     f'but loaded masks have {true_masks.shape[1]} channels. Please check that ' \
+                #     'the masks are loaded correctly.'
                 
                 if data_augment:
                     for i in range(imgs.__len__()):
@@ -91,7 +92,8 @@ def train_net(net,
                 true_masks = true_masks.to(device=device, dtype=torch.float32)
                 
                 masks_pred = net(imgs)
-                loss = criterion(masks_pred, true_masks)
+                loss = my_loss_function(masks_pred, true_masks, criterion)
+                
                 epoch_loss += loss.item()
 
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
@@ -104,10 +106,11 @@ def train_net(net,
                 global_step += 1
 
                 if global_step % (len(dataset) // (10 * batch_size)) == 0:
-                    val_score = eval_net(net, val_loader, device, n_val)
-                    logging.info('Validation Dice Coeff: {}'.format(val_score))
-                    print(" ")
-                    print('Validation Dice Coeff: {}'.format(val_score))
+                    if n_val != 0:
+                        val_score = eval_net(net, val_loader, device, n_val)
+                        logging.info('Validation Dice Coeff: {}'.format(val_score))
+                        print(" ")
+                        print('Validation Dice Coeff: {}'.format(val_score))
         
         if best_score < val_score:
             torch.save(net.state_dict(), './model/PRE_BEST.pth')
@@ -124,6 +127,22 @@ def train_net(net,
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
+
+def dice_loss(input, target) :
+    eps = 1
+    inter = torch.dot(input.view(-1), target.view(-1))
+    union = torch.sum(input) + torch.sum(target) + eps
+
+    return 1 - ((2 * inter.float() + eps) / union.float() )
+    
+
+def my_loss_function(masks_pred, true_masks, criterion):
+    dc_weight = 0.001
+    
+    bce = criterion(masks_pred, true_masks)
+    dc = dice_loss(masks_pred, true_masks.squeeze(dim=1))  # minimize this term
+    
+    return bce + dc_weight * torch.mean(dc)
         
 def my_segmentation_transforms(image, segmentation):
     
@@ -155,24 +174,24 @@ def my_segmentation_transforms(image, segmentation):
     return image, segmentation
 
 def adjust_learning_rate(LEARNING_RATE, optimizer, epoch):
-    lr = LEARNING_RATE * (0.7 ** (epoch // 128))
+    lr = LEARNING_RATE * (0.8 ** (epoch // 128))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=1024,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=512,
                         help='Number of epochs', dest='epochs')
     parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=4,
                         help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.01,
+    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.001,
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
     parser.add_argument('-s', '--scale', dest='scale', type=float, default=0.2,
                         help='Downscaling factor of the images')
-    parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
+    parser.add_argument('-v', '--validation', dest='val', type=float, default=0.0,
                         help='Percent of the data that is used as validation (0-100)')
 
     return parser.parse_args()
@@ -180,14 +199,7 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = UNet(n_channels=1, n_classes=1) # input R=G=B = gray scale
-    
-    # for pre-train
-    if args.load:
-        net.load_state_dict(
-            torch.load(args.load, map_location=device)
-        )
-    
+    net = ResidualUNet(1, 1) # input R=G=B = gray scale 
     net.to(device=device)
     # faster convolutions, but more memory
     torch.backends.cudnn.benchmark = True

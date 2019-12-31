@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>877</width>
-    <height>515</height>
+    <width>767</width>
+    <height>405</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,8 +16,8 @@
   <widget class="QPushButton" name="imgBt">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>380</y>
+     <x>20</x>
+     <y>260</y>
      <width>111</width>
      <height>41</height>
     </rect>
@@ -26,27 +26,11 @@
     <string>Select Image</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="imgName">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>440</y>
-     <width>113</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>img.png</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-   </property>
-  </widget>
   <widget class="QTextEdit" name="dcText">
    <property name="geometry">
     <rect>
-     <x>610</x>
-     <y>70</y>
+     <x>560</x>
+     <y>20</y>
      <width>161</width>
      <height>351</height>
     </rect>
@@ -55,8 +39,8 @@
   <widget class="QPushButton" name="gtBt">
    <property name="geometry">
     <rect>
-     <x>170</x>
-     <y>380</y>
+     <x>140</x>
+     <y>260</y>
      <width>111</width>
      <height>41</height>
     </rect>
@@ -68,8 +52,8 @@
   <widget class="QPushButton" name="runBt">
    <property name="geometry">
     <rect>
-     <x>450</x>
-     <y>380</y>
+     <x>380</x>
+     <y>260</y>
      <width>111</width>
      <height>41</height>
     </rect>
@@ -78,28 +62,12 @@
     <string>RUN</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="maskName">
-   <property name="geometry">
-    <rect>
-     <x>170</x>
-     <y>440</y>
-     <width>113</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>mask.png</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-   </property>
-  </widget>
   <widget class="QLineEdit" name="threshold">
    <property name="geometry">
     <rect>
-     <x>450</x>
-     <y>440</y>
-     <width>113</width>
+     <x>140</x>
+     <y>320</y>
+     <width>111</width>
      <height>20</height>
     </rect>
    </property>
@@ -110,37 +78,11 @@
     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
    </property>
   </widget>
-  <widget class="QLabel" name="imgFileLabel">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>470</y>
-     <width>111</width>
-     <height>21</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Img Filename</string>
-   </property>
-  </widget>
-  <widget class="QLabel" name="gtFileLabel">
-   <property name="geometry">
-    <rect>
-     <x>170</x>
-     <y>470</y>
-     <width>131</width>
-     <height>21</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>GT Filename</string>
-   </property>
-  </widget>
   <widget class="QLabel" name="threLabel">
    <property name="geometry">
     <rect>
-     <x>450</x>
-     <y>470</y>
+     <x>140</x>
+     <y>350</y>
      <width>131</width>
      <height>18</height>
     </rect>
@@ -152,8 +94,8 @@
   <widget class="QPushButton" name="mdBt">
    <property name="geometry">
     <rect>
-     <x>310</x>
-     <y>380</y>
+     <x>260</x>
+     <y>260</y>
      <width>111</width>
      <height>41</height>
     </rect>
@@ -165,8 +107,8 @@
   <widget class="QLabel" name="gtFileLabel_2">
    <property name="geometry">
     <rect>
-     <x>310</x>
-     <y>470</y>
+     <x>20</x>
+     <y>350</y>
      <width>131</width>
      <height>21</height>
     </rect>
@@ -178,8 +120,8 @@
   <widget class="QLineEdit" name="modelName">
    <property name="geometry">
     <rect>
-     <x>310</x>
-     <y>440</y>
+     <x>20</x>
+     <y>320</y>
      <width>113</width>
      <height>20</height>
     </rect>
@@ -189,6 +131,64 @@
    </property>
    <property name="alignment">
     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="scale">
+   <property name="geometry">
+    <rect>
+     <x>380</x>
+     <y>320</y>
+     <width>111</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>0.2</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="scaleLabel">
+   <property name="geometry">
+    <rect>
+     <x>380</x>
+     <y>350</y>
+     <width>131</width>
+     <height>18</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Scale</string>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="ensemThre">
+   <property name="geometry">
+    <rect>
+     <x>260</x>
+     <y>320</y>
+     <width>111</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>0.5</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="ensemLabel">
+   <property name="geometry">
+    <rect>
+     <x>260</x>
+     <y>350</y>
+     <width>131</width>
+     <height>18</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Ensemble Threshold</string>
    </property>
   </widget>
  </widget>
